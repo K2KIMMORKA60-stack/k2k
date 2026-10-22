@@ -9,12 +9,16 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="K2K">
-<link rel="manifest" href="manifest.webmanifest?v=3">
 <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
-<link rel="apple-touch-icon" href="https://k2kimmorka60-stack.github.io/k2k/apple-touch-icon.png?v=3">
-<link rel="apple-touch-icon" sizes="152x152" href="https://k2kimmorka60-stack.github.io/k2k/icons/icon-152.png?v=3">
-<link rel="apple-touch-icon" sizes="167x167" href="https://k2kimmorka60-stack.github.io/k2k/icons/icon-167.png?v=3">
-<link rel="apple-touch-icon" sizes="180x180" href="https://k2kimmorka60-stack.github.io/k2k/apple-touch-icon.png?v=3">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<script>
+  // Sur iPhone et iPad, pas de manifeste : Safari prend alors l'icône apple-touch-icon pour l'écran d'accueil
+  // (avec le manifeste, iOS affichait une simple lettre « K »). Android et ordinateur gardent le manifeste.
+  if (!/iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+    var l = document.createElement('link'); l.rel = 'manifest'; l.href = 'manifest.webmanifest?v=4'; document.head.appendChild(l);
+  }
+</script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
