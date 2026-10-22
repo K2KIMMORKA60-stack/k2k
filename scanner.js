@@ -108,9 +108,11 @@
       if (!r || !r.f) continue;
       const z = zonesFor(r.f);
       if (ui.mode !== 'scan' && !z.length) continue;
-      items.push({ m, f: r.f, z, near: z.length ? z[0].dist : Infinity, count: z.length, recent: z.length ? Math.max(...z.map(o => o.time)) : 0 });
+      // Note de la carte : meilleure zone (qualité de l'order block, moins un malus si elle est loin du prix).
+      const grade = z.length ? Math.max(...z.map(o => Math.round(Math.max(0, o.quality - o.dist * 1000)))) : 0;
+      items.push({ m, f: r.f, z, grade, near: z.length ? z[0].dist : Infinity, count: z.length, recent: z.length ? Math.max(...z.map(o => o.time)) : 0 });
     }
-    const by = { near: (a, b) => a.near - b.near, count: (a, b) => b.count - a.count || a.near - b.near, recent: (a, b) => b.recent - a.recent };
+    const by = { near: (a, b) => a.near - b.near, count: (a, b) => b.count - a.count || a.near - b.near, recent: (a, b) => b.recent - a.recent, grade: (a, b) => b.grade - a.grade };
     items.sort((a, b) => (a.file - b.file) || by[ui.sort](a, b));
     for (const it of items) box.appendChild(it.file ? fileCard(it.m) : card(it));
 
@@ -147,6 +149,7 @@
     if (z.some(o => o.dir < 0)) foot.appendChild(badge('sell', 'VENTE'));
     const dist = badge('dist', '');
     if (z.length) foot.appendChild(dist);
+    if (z.length) foot.appendChild(badge('grade' + (it.grade >= 70 ? ' hi' : ''), 'note ' + it.grade));
     const cls = document.createElement('span'); cls.className = 'cls'; cls.textContent = m.cls; foot.appendChild(cls);
     const open = () => { location.hash = '#/' + m.sym + '/' + UNIT_TF[scannedUnit]; };
     el.querySelector('.grow').addEventListener('click', open);

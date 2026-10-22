@@ -229,6 +229,7 @@ main > .disclaimer { text-align: center; margin-inline: auto; }
 .badge.buy { color: #4fd1c5; border-color: #2c8f87; }
 .badge.sell { color: #f07178; border-color: #a8434a; }
 .badge.dist { color: #8fb4ff; border-color: #3d5c9c; }
+.badge.grade { color: var(--muted); } .badge.grade.hi { color: var(--gold); border-color: #8a7232; }
 .badge.dist.in { color: #f2cf5b; border-color: #9b7d22; }
 .cls { margin-left: auto; font: 500 12px var(--body); color: var(--muted); border: 1px solid var(--line); border-radius: 7px; padding: 2px 8px; }
 .card.file .card-empty { height: 160px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 10px; padding: 16px; font-size: 14px; color: var(--muted); }
@@ -246,3 +247,32 @@ main > .disclaimer { text-align: center; margin-inline: auto; }
   .flabel { min-width: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .scan-btn.busy .ring { animation: none; } }
+
+/* Note K2K, résumé, gestion du risque et qualité de l'appli. */
+h3 { font: 700 13px var(--display); letter-spacing: 0.02em; margin: 6px 0 6px; color: var(--muted); text-transform: uppercase; }
+.brief { font-size: 15px; line-height: 1.55; max-width: 75ch; padding: 10px 12px; border-left: 3px solid var(--gold); background: color-mix(in srgb, var(--gold) 7%, transparent); border-radius: 0 8px 8px 0; }
+.brief:empty { display: none; }
+.grade { display: flex; flex-direction: column; gap: 6px; }
+.grade-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+.grade-head b { font: 700 22px var(--mono); }
+.grade-parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 16px; }
+.gp { display: grid; grid-template-columns: 1fr 70px 40px; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.gp i, .q-list i, .links i { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--teal) var(--v), var(--bg) var(--v)); }
+.gp b { font: 500 12px var(--mono); text-align: right; color: var(--fg); }
+.risk-inputs { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.risk-inputs label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.risk-inputs input { width: 150px; font: 500 15px var(--mono); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.links li { display: grid; grid-template-columns: 70px 90px 1fr; gap: 10px; align-items: center; font-size: 13px; }
+.links b { font: 600 13px var(--mono); }
+.links i.neg { background: linear-gradient(90deg, var(--bear) var(--v), var(--bg) var(--v)); }
+.quality summary { cursor: pointer; list-style: none; }
+.quality summary::-webkit-details-marker { display: none; }
+.q-total { color: var(--teal); }
+.q-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.q-list li { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.q-list li > span { font-weight: 600; font-size: 14px; }
+.q-list li > b { font: 600 14px var(--mono); }
+.q-list li > i { grid-column: 1 / -1; }
+.q-list li > small { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.links li.source { display: block; }

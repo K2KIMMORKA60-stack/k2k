@@ -51,7 +51,7 @@
     <div class="frow">
       <span class="flabel">Trier</span>
       <div class="seg" id="f-sort">
-        <button type="button" data-v="near">Proximité</button><button type="button" data-v="count">Plus d'OB</button><button type="button" data-v="recent">Récent</button>
+        <button type="button" data-v="near">Proximité</button><button type="button" data-v="count">Plus d'OB</button><button type="button" data-v="recent">Récent</button><button type="button" data-v="grade">Note</button>
       </div>
       <div class="seg" id="f-layout" aria-label="Affichage des cartes">
         <button type="button" data-v="grid" aria-label="Grille">▦</button><button type="button" data-v="list" aria-label="Liste">☰</button>
@@ -64,6 +64,20 @@
     <p id="scan-note">Analyse des Order Blocks sur tout l'univers</p>
   </div>
   <div class="cards" id="cards"></div>
+  <details class="panel quality">
+    <summary><h2>Qualité de K2K : <span class="q-total">62 %</span></h2></summary>
+    <p class="source">Note honnête, domaine par domaine, et ce qu'il manque pour monter.</p>
+    <ul class="q-list">
+      <li><span>Prix en direct</span><b>55 %</b><i style="--v:55%"></i><small>Or (via PAXG), crypto et euro en direct. Pas de flux gratuit pour le NAS100, les actions et l'énergie.</small></li>
+      <li><span>Détection SMC</span><b>75 %</b><i style="--v:75%"></i><small>Order blocks, BOS / CHoCH, FVG, liquidité, premium / discount, sur 5 unités.</small></li>
+      <li><span>Plan de trade</span><b>70 %</b><i style="--v:70%"></i><small>Entrée, stop, TP1, TP2, 9 confluences, note sur 100.</small></li>
+      <li><span>Institutions (COT)</span><b>70 %</b><i style="--v:70%"></i><small>Rapport officiel chaque semaine, mais seulement pour l'or, le Nasdaq et le Bitcoin.</small></li>
+      <li><span>Gestion du risque</span><b>70 %</b><i style="--v:70%"></i><small>Taille en lots, stress test, liens entre marchés. Tailles de lot standard, à vérifier chez ton courtier.</small></li>
+      <li><span>Alertes</span><b>60 %</b><i style="--v:60%"></i><small>Telegram en 4h et 1h, une fois ton bot branché. GitHub peut décaler de quelques minutes.</small></li>
+      <li><span>Design</span><b>80 %</b><i style="--v:80%"></i><small>Écran façon OB Scanner, graphiques propres, installée sur l'iPhone.</small></li>
+      <li><span>Fiabilité prouvée</span><b>20 %</b><i style="--v:20%"></i><small>Le plus gros manque : les setups n'ont pas encore été testés sur l'historique (backtest et taux de réussite).</small></li>
+    </ul>
+  </details>
   <p class="disclaimer">Aide à la décision, pas un conseil financier.</p>
 </section>
 
@@ -115,6 +129,11 @@
       <h2>Plan de trade</h2>
       <span class="pill" id="plan-pill">—</span>
     </div>
+    <div class="brief" id="plan-brief"></div>
+    <div class="grade" id="plan-grade" hidden>
+      <div class="grade-head"><span>Note K2K</span><b id="grade-val"></b></div>
+      <div class="grade-parts" id="grade-parts"></div>
+    </div>
     <div class="levels" id="plan-levels"></div>
     <div class="conf" id="plan-conf" hidden>
       <div class="g-label"><span>Confluences</span><span class="g-sub" id="plan-conf-val"></span></div>
@@ -122,6 +141,24 @@
       <ul class="checks" id="plan-checks"></ul>
     </div>
     <div class="analysis" id="plan-text"></div>
+  </section>
+
+  <section class="panel risk" id="risk-panel">
+    <div class="panel-head"><h2>Gestion du risque</h2><span class="source" id="risk-spec"></span></div>
+    <div class="risk-inputs">
+      <label>Capital ($)<input id="r-cap" type="number" inputmode="decimal" min="0" step="100"></label>
+      <label>Risque par trade (%)<input id="r-pct" type="number" inputmode="decimal" min="0.1" max="10" step="0.1"></label>
+    </div>
+    <div class="levels" id="risk-out"></div>
+    <div id="stress-box">
+      <h3>Stress test</h3>
+      <div class="table-wrap"><table class="cot"><thead><tr><th>Scénario</th><th>Résultat</th><th>Capital</th></tr></thead><tbody id="stress"></tbody></table></div>
+    </div>
+    <div>
+      <h3>Liens avec les autres marchés</h3>
+      <ul class="links" id="corr"><li class="source">Calcul en cours…</li></ul>
+      <p class="source" id="corr-note"></p>
+    </div>
   </section>
 
   <section class="panel">
@@ -188,6 +225,7 @@
 <script src="cot.js"></script>
 <script src="data.js"></script>
 <script src="plan.js"></script>
+<script src="risk.js"></script>
 <script src="app.js"></script>
 <script src="scanner.js"></script>
 </body>

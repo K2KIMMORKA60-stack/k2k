@@ -226,11 +226,12 @@
     lv.textContent = ''; txt.textContent = '';
     planLines.forEach(l => candleSeries.removePriceLine(l)); planLines = [];
     $('plan-conf').hidden = true;
-    if (!p) { pill.textContent = '—'; pill.className = 'pill'; para(txt, state.loading ? 'Analyse en cours…' : 'Pas encore de bougies pour ce marché.'); return; }
+    if (!p) { renderRisk(null); pill.textContent = '—'; pill.className = 'pill'; para(txt, state.loading ? 'Analyse en cours…' : 'Pas encore de bougies pour ce marché.'); return; }
     if (p.status === 'wait') {
       pill.textContent = 'Pas de setup'; pill.className = 'pill';
       para(txt, '<b>En attente.</b> ' + esc(p.reason));
       narrative(txt, null);
+      renderRisk(p);
       return;
     }
     const buy = p.dir > 0;
@@ -255,6 +256,89 @@
     if (p.tp2) line(p.tp2.price, PAPER.buy, 'TP2', 2);
     }
     narrative(txt, p);
+    renderRisk(p);
+  }
+
+  // ---------- Gestion du risque, note K2K et résumé en 3 phrases ----------
+  const money = v => Math.round(v).toLocaleString('fr-FR') + ' $';
+  const capIn = $('r-cap'), pctIn = $('r-pct');
+  capIn.value = store.get('cap') || '10000';
+  pctIn.value = store.get('pct') || '1';
+  for (const el of [capIn, pctIn]) el.addEventListener('input', () => { store.set('cap', capIn.value); store.set('pct', pctIn.value); renderRisk(state.plan); });
+  let corrFor = '';
+
+  function renderRisk(p) {
+    const cap = +capIn.value || 0, pct = +pctIn.value || 0;
+    const out = $('risk-out'), brief = $('plan-brief');
+    out.textContent = ''; brief.textContent = '';
+    const spec = Risk.SPEC[state.sym];
+    $('risk-spec').textContent = spec ? spec.note : '';
+    const g = Risk.grade(p, state.frames, cotBias());
+    $('plan-grade').hidden = !g;
+    if (g) {
+      $('grade-val').textContent = g.total + ' / 100';
+      $('grade-val').className = g.total >= 70 ? 'up' : g.total < 45 ? 'down' : '';
+      const parts = $('grade-parts'); parts.textContent = '';
+      for (const x of g.parts) {
+        const d = document.createElement('div'); d.className = 'gp';
+        d.innerHTML = '<span></span><i></i><b></b>';
+        d.children[0].textContent = x.k; d.children[1].style.setProperty('--v', Math.round(x.v * 100) + '%'); d.children[2].textContent = Math.round(x.v * x.w) + '/' + x.w;
+        parts.appendChild(d);
+      }
+    }
+    const tile = (cls, k, v, sub) => { const d = document.createElement('div'); d.className = 'level ' + cls; d.innerHTML = '<span class="k"></span><span class="v"></span><span class="s"></span>'; d.children[0].textContent = k; d.children[1].textContent = v; d.children[2].textContent = sub; out.appendChild(d); };
+    const z = p && p.status !== 'wait' ? Risk.size(state.sym, cap, pct, p.entry, p.stop) : null;
+    $('stress-box').hidden = !z;
+    if (!p || p.status === 'wait') {
+      if (p) brief.textContent = 'En bref : pas de setup pour le moment. ' + p.reason;
+      tile('', 'Position', '—', 'pas de plan, rien à engager');
+    } else if (z) {
+      const lotsTxt = z.lots.toLocaleString('fr-FR', { maximumFractionDigits: z.unit === 'lot' ? 2 : 4 }) + ' ' + z.unit + (z.unit === 'lot' && z.lots >= 2 ? 's' : '');
+      tile('entry', 'Taille', lotsTxt, z.lots ? 'exposition ' + money(z.notional) + ' · levier ' + (z.notional / (cap || 1)).toFixed(1) + '×' : 'risque trop petit pour 1 lot minimum');
+      tile('stop', 'Perte max', '−' + money(z.lossUsd), (z.lossUsd / (cap || 1) * 100).toFixed(2).replace('.', ',') + ' % du capital');
+      tile('tp', 'Gain TP1', p.tp1 ? '+' + money((p.tp1.price - p.entry) * p.dir * z.lots * z.per) : '—', p.tp1 ? '+' + p.rr1.toFixed(1) + ' R' : '');
+      tile('tp', 'Gain TP2', p.tp2 ? '+' + money((p.tp2.price - p.entry) * p.dir * z.lots * z.per) : '—', p.tp2 ? '+' + p.rr2.toFixed(1) + ' R' : '');
+      const atr4 = state.frames['4h'] ? state.frames['4h'].smc.atr : null;
+      const body = $('stress'); body.textContent = '';
+      for (const s of Risk.stress(z, p, atr4)) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td></td><td class="num down"></td><td class="num"></td>';
+        tr.children[0].textContent = s.name; tr.children[1].textContent = money(s.loss); tr.children[2].textContent = (s.loss / (cap || 1) * 100).toFixed(1).replace('.', ',') + ' %';
+        body.appendChild(tr);
+      }
+      // Résumé en 3 phrases, comme un assistant qui explique simplement.
+      const cb = cotBias(), buy = p.dir > 0, tp = p.tp2 || p.tp1;
+      const s1 = state.sym + ' : biais ' + (buy ? 'acheteur' : 'vendeur') + ' sur le 4h et le 1h' + (cb == null ? '.' : Math.sign(cb) === p.dir ? ', et les institutions vont dans le même sens.' : ', mais les institutions sont de l\'autre côté : prudence.');
+      const s2 = (buy ? 'Achat' : 'Vente') + ' à ' + price(p.entry) + ' sur l\'order block ' + p.tf + ', stop ' + price(p.stop) + (tp ? ', objectif ' + price(tp.price) + ' (' + (p.tp2 ? p.rr2 : p.rr1).toFixed(1) + ' R).' : '.');
+      const s3 = 'Avec ' + money(cap) + ' et ' + String(pct).replace('.', ',') + ' % de risque : ' + lotsTxt + ', perte maximale ' + money(z.lossUsd) + '. Le scénario tombe si une bougie ' + p.tf + ' clôture ' + (buy ? 'sous ' : 'au-dessus de ') + price(buy ? p.ob.bottom : p.ob.top) + '.';
+      brief.textContent = 'En bref. ' + s1 + ' ' + s2 + ' ' + s3;
+    }
+    renderLinks();
+  }
+
+  // Liens entre marchés (corrélation 4h) : deux positions sur des marchés très liés, c'est deux fois le même risque.
+  async function renderLinks() {
+    const sym = state.sym, f4 = state.frames['4h'];
+    const list = $('corr');
+    if (!f4) { corrFor = ''; list.innerHTML = '<li class="source">Il faut les bougies 4h pour calculer les liens.</li>'; $('corr-note').textContent = ''; return; }
+    if (corrFor === sym) return;
+    corrFor = sym;
+    const res = await Risk.links(sym, f4.candles.slice(-120));
+    if (state.sym !== sym) return;
+    list.textContent = '';
+    if (!res.length) { list.innerHTML = '<li class="source">Pas assez de données pour comparer.</li>'; return; }
+    for (const r of res.slice(0, 5)) {
+      const li = document.createElement('li');
+      const word = r.v >= 0.7 ? 'très lié' : r.v >= 0.4 ? 'lié' : r.v <= -0.4 ? 'bouge à l\'inverse' : 'peu lié';
+      li.innerHTML = '<b></b><i></i><span></span>';
+      li.children[0].textContent = r.sym;
+      li.children[1].style.setProperty('--v', Math.round(Math.abs(r.v) * 100) + '%');
+      li.children[1].className = r.v < 0 ? 'neg' : '';
+      li.children[2].textContent = (r.v > 0 ? '+' : '') + r.v.toFixed(2).replace('.', ',') + ' · ' + word;
+      list.appendChild(li);
+    }
+    const strong = res.filter(r => r.v >= 0.7).map(r => r.sym);
+    $('corr-note').textContent = strong.length ? 'Si tu as déjà une position sur ' + strong.join(' ou ') + ' dans le même sens, tu doubles ton risque : réduis la taille.' : 'Aucun marché très lié : une position ici diversifie bien ton risque.';
   }
 
   function para(box, html) { const el = document.createElement('p'); el.innerHTML = html; box.appendChild(el); }
@@ -604,6 +688,7 @@
     $('d-sym').textContent = sym;
     $('d-name').textContent = u ? u.name + ' · ' + u.cls : '';
     state.fitted = '';
+    corrFor = '';
     connectLive();
     renderCot();
     loadCandles();
