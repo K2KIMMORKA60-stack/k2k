@@ -1,0 +1,25 @@
+# Alertes Telegram quand un order block 4h ou 1h est touché. Tourne toutes les 5 minutes (GitHub peut décaler de quelques minutes).
+name: Alertes OB 4h et 1h
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+concurrency: alertes-ob
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: alerts/state.json
+          key: alertes-state-${{ github.run_id }}
+          restore-keys: alertes-state-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node alerts/ob-alert.js
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
