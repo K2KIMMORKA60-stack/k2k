@@ -67,11 +67,12 @@
     empty.hidden = true;
     candleSeries.setData(state.candles.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
     const s = state.smc, markers = [];
-    for (const e of s.events.slice(-12)) markers.push({ time: e.time, position: e.dir > 0 ? 'belowBar' : 'aboveBar', color: e.type === 'CHoCH' ? COL.gold : (e.dir > 0 ? COL.bull : COL.bear), shape: e.dir > 0 ? 'arrowUp' : 'arrowDown', text: e.type });
-    for (const w of s.sweeps.slice(-8)) markers.push({ time: w.time, position: w.dir > 0 ? 'belowBar' : 'aboveBar', color: COL.warn, shape: 'circle', text: 'Liq' });
+    const narrow = chartEl.clientWidth < 600;
+    for (const e of s.events.slice(narrow ? -5 : -12)) markers.push({ time: e.time, position: e.dir > 0 ? 'belowBar' : 'aboveBar', color: e.type === 'CHoCH' ? COL.gold : (e.dir > 0 ? COL.bull : COL.bear), shape: e.dir > 0 ? 'arrowUp' : 'arrowDown', text: e.type });
+    for (const w of s.sweeps.slice(narrow ? -3 : -8)) markers.push({ time: w.time, position: w.dir > 0 ? 'belowBar' : 'aboveBar', color: COL.warn, shape: 'circle', text: narrow ? '' : 'Liq' });
     markers.sort((a, b) => a.time - b.time);
     candleSeries.setMarkers(markers);
-    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, state.candles.length - 160), to: state.candles.length + 4 });
+    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, state.candles.length - (narrow ? 90 : 160)), to: state.candles.length + 4 });
     requestAnimationFrame(drawZones);
   }
 
