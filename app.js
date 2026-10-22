@@ -18,11 +18,9 @@
   const PAPER = { bg: C('--paper'), grid: C('--paper-line'), ink: C('--paper-ink'), buy: C('--buy'), sell: C('--sell') };
   // Style « graphique propre » : corps vert en hausse, noir en baisse, contours et mèches noirs fins.
   const CANDLES = { upColor: '#3fbf4f', downColor: '#111111', borderUpColor: '#111111', borderDownColor: '#111111', wickUpColor: '#111111', wickDownColor: '#111111' };
-  // Order blocks : gris pour les blocs haussiers (zone d'achat), rose saumon pour les blocs baissiers (zone de vente).
-  const OB_STYLE = { buy: { fill: 'rgba(170,170,170,0.35)', stroke: '#8f8f8f' }, sell: { fill: 'rgba(240,160,140,0.40)', stroke: '#d98c78' } };
   const view = { clean: true };
   try { view.clean = localStorage.getItem('k2k.clean') !== '0'; } catch (e) { /* stockage indisponible */ }
-  const state = { sym: 'XAUUSD', tf: '15m', frames: {}, source: '', cot: {}, imported: {}, fitted: '' };
+  const state = { open: false, sym: 'XAUUSD', tf: '15m', frames: {}, source: '', cot: {}, imported: {}, fitted: '' };
   const frame = () => state.frames[state.tf] || null;
   const fmt = new Intl.NumberFormat('fr-FR');
   const store = {
@@ -46,45 +44,12 @@
   const nowLine = candleSeries.createPriceLine({ price: 0, color: '#111111', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '', lineVisible: false });
   const scanSeries = {};
 
-  // Dessine des rectangles fins d'order blocks sur un calque au-dessus d'un graphique.
-  function drawBoxes(canvas, el, ch, series, obs, labels) {
-    const r = el.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = r.width * dpr; canvas.height = r.height * dpr;
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, r.width, r.height);
-    const ts = ch.timeScale();
-    const plotW = r.width - series.priceScale().width();
-    for (const o of obs) {
-      let x = ts.timeToCoordinate(o.time);
-      const y1 = series.priceToCoordinate(o.top), y2 = series.priceToCoordinate(o.bottom);
-      if (y1 == null || y2 == null) continue;
-      if (x == null) x = 0;
-      if (x > plotW) continue;
-      const st = o.dir > 0 ? OB_STYLE.buy : OB_STYLE.sell;
-      const h = Math.max(3, y2 - y1);
-      ctx.fillStyle = st.fill; ctx.fillRect(x, y1, plotW - x, h);
-      ctx.strokeStyle = st.stroke; ctx.lineWidth = 1; ctx.setLineDash([]);
-      ctx.strokeRect(Math.round(x) + 0.5, Math.round(y1) + 0.5, Math.round(plotW - x) - 1, Math.round(h));
-      if (labels) {
-        ctx.fillStyle = st.stroke; ctx.font = '600 9px IBM Plex Mono, monospace';
-        ctx.fillText(o.dir > 0 ? 'ACHAT' : 'VENTE', plotW - 40, y1 - 3);
-      }
-    }
-  }
-
-  // Zones encore valides, les plus proches du prix d'abord.
-  function liveZones(f, n) {
-    const last = f.candles[f.candles.length - 1].close;
-    return f.smc.orderBlocks.filter(o => o.status !== 'invalidé')
-      .map(o => ({ ...o, level: o.dir > 0 ? o.top : o.bottom, dist: Math.abs((o.dir > 0 ? o.top : o.bottom) - last) / last }))
-      .sort((a, b) => a.dist - b.dist).slice(0, n || 5);
-  }
+  const liveZones = (f, n) => Zones.nearest(f, n);
 
   function drawZones() {
     const f = frame();
-    drawBoxes(zones, chartEl, chart, candleSeries, f ? liveZones(f, view.clean ? 4 : 6) : [], !view.clean);
+    // Vue propre : bandes fines identiques. Vue détaillée : vraie hauteur des order blocks, même couleur.
+    Zones.draw(zones, chartEl, chart, candleSeries, f ? liveZones(f, view.clean ? 4 : 6) : [], { uniform: view.clean });
     if (f) drawPosition(f);
     if (!f || view.clean) return;
     // Vue détaillée : on ajoute les FVG en pointillés dorés.
@@ -223,7 +188,7 @@
       se.setData(f.candles.slice(-50).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
       for (const z of zones) near.push({ tf: t.label, z, last: f.candles[f.candles.length - 1].close });
       const holder = card.querySelector('.scan-chart'), cv = card.querySelector('.scan-zones');
-      const redraw = () => requestAnimationFrame(() => { if (!entry.dead) drawBoxes(cv, holder, ch, se, zones, false); });
+      const redraw = () => requestAnimationFrame(() => { if (!entry.dead) Zones.draw(cv, holder, ch, se, zones, { labels: false }); });
       ch.timeScale().subscribeVisibleTimeRangeChange(redraw);
       entry.ro = new ResizeObserver(redraw);
       entry.ro.observe(holder);
@@ -375,6 +340,12 @@
     const body = $('cot-body');
     const data = state.cot[state.sym];
     body.textContent = '';
+    if (data && data.none) {
+      $('cot-date').textContent = '';
+      body.innerHTML = '<tr><td colspan="5">Pas de rapport COT pour ce marché : la CFTC ne publie que les contrats à terme américains (or, Nasdaq, Bitcoin…).</td></tr>';
+      if (cotChart) { cotChart.remove(); cotChart = null; }
+      return;
+    }
     if (!data || data.error) {
       $('cot-date').textContent = '';
       body.innerHTML = '<tr><td colspan="5" class="' + (data && data.error ? 'error' : '') + '"></td></tr>';
@@ -438,6 +409,7 @@
   function renderVerdict() {
     const cot = state.cot[state.sym];
     const cb = cot && cot.summary ? cot.summary.bias : null;
+    const noCot = !!(cot && cot.none);
     const sb = mtfScore();
     setGauge('g-cot', cb); setGauge('g-smc', sb);
     const pill = $('v-pill');
@@ -454,7 +426,7 @@
       if (cb != null) {
         const f = cot.summary.groups.find(g => g.id === 'funds');
         parts.push('Les ' + f.name.split(' (')[0].toLowerCase() + ' sont ' + (f.month >= 0 ? 'en train d\'acheter' : 'en train de vendre') + ' depuis 4 semaines (' + (f.month > 0 ? '+' : '') + fmt.format(Math.round(f.month)) + ' contrats nets).');
-      } else parts.push('Le rapport COT n\'est pas chargé.');
+      } else parts.push(noCot ? 'Pas de rapport COT pour ce marché : l\'analyse repose sur le graphique seul.' : 'Le rapport COT n\'est pas chargé.');
       if (sb != null) parts.push(alignText());
       else parts.push('Importe des bougies pour ajouter l\'analyse du graphique.');
       text = parts.join(' ');
@@ -495,7 +467,7 @@
     if (!Prices.LIVE[sym]) {
       state.loading = false;
       empty.hidden = false;
-      empty.textContent = 'Pas de flux de prix gratuit pour le Nasdaq. Exporte tes bougies 5 min depuis MT5 ou TradingView, puis touche « Importer un fichier ».';
+      empty.textContent = 'Pas de flux de prix gratuit pour ce marché. Exporte tes bougies 5 min depuis MT5 ou TradingView, puis touche « Importer un fichier ».';
       $('chart-source').textContent = '';
       renderAll(); return;
     }
@@ -549,6 +521,7 @@
   }
 
   async function loadCot(sym) {
+    if (!COT.MARKETS[sym]) { state.cot[sym] = { none: true }; if (sym === state.sym) { renderCot(); renderVerdict(); } return; }
     if (state.cot[sym] && !state.cot[sym].error) return;
     try { state.cot[sym] = await COT.fetchMarket(sym, 156); }
     catch (e) { state.cot[sym] = { error: e.message }; }
@@ -567,7 +540,7 @@
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
     const pair = Prices.LIVE[state.sym];
     setLive(false);
-    if (!pair || state.imported[state.sym] || !('WebSocket' in window)) return;
+    if (!state.open || !pair || state.imported[state.sym] || !('WebSocket' in window)) return;
     const p = pair.toLowerCase();
     const streams = TFS.map(t => p + '@kline_' + t.tf).join('/');
     const hosts = ['wss://stream.binance.com:9443', 'wss://data-stream.binance.vision'];
@@ -627,8 +600,9 @@
   // ---------- Interactions ----------
   function selectMarket(sym) {
     state.sym = sym;
-    store.set('sym', sym);
-    document.querySelectorAll('.markets button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.sym === sym)));
+    const u = Prices.UNIVERSE.find(m => m.sym === sym);
+    $('d-sym').textContent = sym;
+    $('d-name').textContent = u ? u.name + ' · ' + u.cls : '';
     state.fitted = '';
     connectLive();
     renderCot();
@@ -642,7 +616,6 @@
     connectLive();
     document.querySelectorAll('.scan-card').forEach((c, i) => c.setAttribute('aria-pressed', String(TFS[i].tf === tf)));
   }
-  document.querySelectorAll('.markets button').forEach(b => b.addEventListener('click', () => selectMarket(b.dataset.sym)));
   const viewBtn = $('view-toggle');
   const syncView = () => { viewBtn.textContent = view.clean ? 'Vue détaillée' : 'Vue propre'; viewBtn.setAttribute('aria-pressed', String(!view.clean)); };
   syncView();
@@ -669,11 +642,42 @@
   });
 
   // Actualisation automatique des prix en direct toutes les minutes.
-  setInterval(() => { if (!document.hidden && Prices.LIVE[state.sym] && !state.imported[state.sym]) loadCandles(true); }, 60000);
+  setInterval(() => { if (state.open && !document.hidden && Prices.LIVE[state.sym] && !state.imported[state.sym]) loadCandles(true); }, 60000);
 
   const savedTf = store.get('tf');
   if (savedTf && TFS.some(t => t.tf === savedTf)) state.tf = savedTf;
-  selectMarket(store.get('sym') || 'XAUUSD');
+
+  // Fiche d'un marché, ouverte depuis une carte du scanner (bouton « Agrandir »).
+  window.K2K = {
+    open(sym, tf) {
+      state.open = true;
+      if (tf && TFS.some(t => t.tf === tf)) state.tf = tf;
+      selectMarket(sym);
+    },
+    close() {
+      state.open = false;
+      wsToken++;
+      if (ws) { ws.onclose = null; ws.close(); ws = null; }
+      setLive(false);
+    },
+    // Résumé envoyé à Claude : contexte, zones et plan du marché affiché.
+    summary() {
+      const lines = ['Analyse K2K de ' + state.sym + ' (' + state.tf + ').'];
+      for (const t of TFS) {
+        const f = state.frames[t.tf];
+        if (!f) continue;
+        const s = f.smc, z = liveZones(f, 3).map(o => (o.dir > 0 ? 'achat ' : 'vente ') + price(o.bottom) + '-' + price(o.top) + ' (' + o.status + ', note ' + o.quality + ')');
+        lines.push(t.tf + ' : tendance ' + (s.trend > 0 ? 'haussière' : s.trend < 0 ? 'baissière' : 'neutre') + ', note ' + s.score + (s.range ? ', zone ' + s.range.zone : '') + (z.length ? ', zones : ' + z.join(' ; ') : ''));
+      }
+      const c = state.cot[state.sym];
+      if (c && c.summary) lines.push('COT : biais institutions ' + c.summary.bias + '.');
+      const p = state.plan;
+      if (p && p.status !== 'wait') lines.push('Plan K2K : ' + (p.dir > 0 ? 'achat' : 'vente') + ' entrée ' + price(p.entry) + ', stop ' + price(p.stop) + (p.tp1 ? ', TP1 ' + price(p.tp1.price) : '') + (p.tp2 ? ', TP2 ' + price(p.tp2.price) : '') + ', confluences ' + p.confluence + ' %.');
+      else if (p) lines.push('Plan K2K : pas de setup (' + p.reason + ')');
+      lines.push('En tant qu\'analyste SMC, que penses-tu de ce plan ? Points forts, risques, et ce que tu attendrais avant d\'entrer.');
+      return lines.join('\n');
+    },
+  };
 
   // Sur iPhone, le service worker peut gêner Safari quand il va chercher l'icône de l'écran d'accueil :
   // on le retire et on vide son cache. Ailleurs, il sert à ouvrir l'appli hors connexion.

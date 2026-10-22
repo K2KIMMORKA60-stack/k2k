@@ -25,15 +25,50 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span class="mark">K2K</span><span class="tag">Smart money</span></div>
-  <nav class="markets" role="tablist" aria-label="Marché">
-    <button role="tab" id="tab-XAUUSD" data-sym="XAUUSD" aria-selected="true">XAUUSD</button>
-    <button role="tab" id="tab-NAS100" data-sym="NAS100" aria-selected="false">NAS100</button>
-    <button role="tab" id="tab-BTC" data-sym="BTC" aria-selected="false">BTC</button>
+  <button class="brand" id="home-link" type="button"><span class="dot-live" aria-hidden="true"></span><span class="mark">K2K</span></button>
+  <nav class="modes" aria-label="Affichage">
+    <button type="button" data-mode="scan" aria-pressed="true">Scanner</button>
+    <button type="button" data-mode="touched" aria-pressed="false">OB Touchés</button>
+    <button type="button" data-mode="reaction" aria-pressed="false">Réaction</button>
   </nav>
+  <button class="claude-btn" id="ask-claude" type="button">Demander à Claude</button>
 </header>
 
-<main>
+<section class="home" id="home">
+  <div class="filters">
+    <div class="frow">
+      <span class="flabel">Unité</span>
+      <div class="chips" id="f-unit">
+        <button type="button" data-v="5m">5m</button><button type="button" data-v="15m">15m</button><button type="button" data-v="1h">1h</button><button type="button" data-v="4h">4h</button><button type="button" data-v="1d">Daily</button><button type="button" data-v="1w">Weekly</button>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="flabel">Classe</span>
+      <div class="chips" id="f-cls">
+        <button type="button" data-v="NQ100">NQ100</button><button type="button" data-v="Indices">Indices</button><button type="button" data-v="Métaux">Métaux</button><button type="button" data-v="Énergie">Énergie</button><button type="button" data-v="Forex">Forex</button><button type="button" data-v="Crypto">Crypto</button>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="flabel">Trier</span>
+      <div class="seg" id="f-sort">
+        <button type="button" data-v="near">Proximité</button><button type="button" data-v="count">Plus d'OB</button><button type="button" data-v="recent">Récent</button>
+      </div>
+      <div class="seg" id="f-layout" aria-label="Affichage des cartes">
+        <button type="button" data-v="grid" aria-label="Grille">▦</button><button type="button" data-v="list" aria-label="Liste">☰</button>
+      </div>
+      <input class="search" id="f-search" type="search" placeholder="Rechercher… (ex. BTC)" autocomplete="off" aria-label="Rechercher un marché">
+    </div>
+  </div>
+  <div class="scan-cta">
+    <button class="scan-btn" id="scan-btn" type="button"><span class="ring" aria-hidden="true"></span><span id="scan-btn-text">Scanner les OrderBlocks</span></button>
+    <p id="scan-note">Analyse des Order Blocks sur tout l'univers</p>
+  </div>
+  <div class="cards" id="cards"></div>
+  <p class="disclaimer">Aide à la décision, pas un conseil financier.</p>
+</section>
+
+<main id="detail" hidden>
+  <div class="detail-top"><button class="btn" id="back" type="button">← Scanner</button><b class="d-sym" id="d-sym"></b><span class="source" id="d-name"></span></div>
   <section class="verdict" aria-live="polite">
     <div class="verdict-head">
       <h1 id="v-title">Analyse en cours…</h1>
@@ -70,8 +105,7 @@
       <div class="chart-empty" id="chart-empty" hidden></div>
     </div>
     <div class="legend">
-      <span><i class="sw ob-bull"></i>Order block haussier</span>
-      <span><i class="sw ob-bear"></i>Order block baissier</span>
+      <span><i class="sw ob-zone"></i><b class="z-buy">ZONE ACHAT</b> et <b class="z-sell">ZONE VENTE</b> : même style, seule l'étiquette change</span>
     </div>
     <p class="source" id="chart-source"></p>
   </section>
@@ -100,7 +134,7 @@
 
   <section class="panel">
     <div class="panel-head">
-      <h2>Scanner d'order blocks</h2>
+      <h2>Order blocks par unité</h2>
       <span class="source">Touche un graphique pour l'agrandir</span>
     </div>
     <div class="scan-grid" id="scan-grid"></div>
@@ -150,9 +184,11 @@
 
 <script src="vendor/lightweight-charts.standalone.production.js"></script>
 <script src="smc.js"></script>
+<script src="zones.js"></script>
 <script src="cot.js"></script>
 <script src="data.js"></script>
 <script src="plan.js"></script>
 <script src="app.js"></script>
+<script src="scanner.js"></script>
 </body>
 </html>

@@ -3,7 +3,19 @@
 (function (root) {
   'use strict';
 
-  const LIVE = { BTC: 'BTCUSDT', XAUUSD: 'PAXGUSDT' };
+  const LIVE = { XAUUSD: 'PAXGUSDT', BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', BNB: 'BNBUSDT', XRP: 'XRPUSDT', EURUSD: 'EURUSDT' };
+  // Univers du scanner. Seuls les marchés avec un flux Binance gratuit sont scannés en direct ;
+  // NAS100 passe par un fichier importé. Forex : seul l'euro existe sur Binance (paire EUR/USDT).
+  const UNIVERSE = [
+    { sym: 'XAUUSD', name: 'Or', cls: 'Métaux' },
+    { sym: 'BTC', name: 'Bitcoin', cls: 'Crypto' },
+    { sym: 'ETH', name: 'Ethereum', cls: 'Crypto' },
+    { sym: 'SOL', name: 'Solana', cls: 'Crypto' },
+    { sym: 'BNB', name: 'BNB', cls: 'Crypto' },
+    { sym: 'XRP', name: 'XRP', cls: 'Crypto' },
+    { sym: 'EURUSD', name: 'Euro / dollar', cls: 'Forex' },
+    { sym: 'NAS100', name: 'Nasdaq 100', cls: 'Indices', fileOnly: true },
+  ];
   const HOSTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
 
   async function fetchLive(symbol, interval, limit) {
@@ -55,6 +67,6 @@
     return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) / 1000);
   }
 
-  const api = { LIVE, fetchLive, parseCsv };
+  const api = { LIVE, UNIVERSE, fetchLive, parseCsv };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Prices = api;
 })(typeof self !== 'undefined' ? self : this);

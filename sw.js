@@ -1,6 +1,6 @@
 // K2K : l'appli s'ouvre même hors connexion ; les données de marché passent toujours par le réseau.
-const CACHE = 'k2k-v13';
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'smc.js', 'cot.js', 'data.js', 'manifest.webmanifest', 'plan.js', 'icons/favicon-32.png', 'icons/icon-192.png', 'vendor/lightweight-charts.standalone.production.js'];
+const CACHE = 'k2k-v14';
+const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'smc.js', 'cot.js', 'data.js', 'manifest.webmanifest', 'plan.js', 'zones.js', 'scanner.js', 'icons/favicon-32.png', 'icons/icon-192.png', 'vendor/lightweight-charts.standalone.production.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
