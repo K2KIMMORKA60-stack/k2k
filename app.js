@@ -41,7 +41,10 @@
     timeScale: { borderColor: PAPER.grid, timeVisible: true, secondsVisible: false, rightOffset: 12 },
     crosshair: { mode: 0 },
   });
-  const candleSeries = chart.addCandlestickSeries(CANDLES);
+  const candleSeries = chart.addCandlestickSeries({ ...CANDLES, priceLineVisible: false, lastValueVisible: false });
+  // Ligne du prix actuel avec le compte à rebours jusqu'à la clôture de la bougie, comme sur TradingView.
+  const nowLine = candleSeries.createPriceLine({ price: 0, color: '#111111', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '', lineVisible: false });
+  const scanSeries = {};
 
   // Dessine des rectangles fins d'order blocks sur un calque au-dessus d'un graphique.
   function drawBoxes(canvas, el, ch, series, obs, labels) {
@@ -143,8 +146,9 @@
     const key = state.sym + state.tf;
     if (state.fitted !== key) {
       state.fitted = key;
-      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, f.candles.length - (narrow ? 40 : 100)), to: f.candles.length + (narrow ? 10 : 18) });
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, f.candles.length - (narrow ? 45 : 130)), to: f.candles.length + (narrow ? 12 : 60) });
     }
+    tick();
     requestAnimationFrame(drawZones);
   }
 
@@ -188,6 +192,7 @@
   const scanCharts = [];
   function renderScanner() {
     const grid = $('scan-grid');
+    for (const k in scanSeries) delete scanSeries[k];
     while (scanCharts.length) { const sc = scanCharts.pop(); sc.dead = true; if (sc.ro) sc.ro.disconnect(); sc.ch.remove(); }
     grid.textContent = '';
     const near = [];
@@ -208,12 +213,13 @@
         autoSize: true, localization: { locale: 'fr-FR' },
         layout: { background: { color: PAPER.bg }, textColor: PAPER.ink, fontFamily: 'IBM Plex Mono, monospace', fontSize: 10 },
         grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-        rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true },
+        rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true, rightOffset: 6 },
         handleScroll: false, handleScale: false, crosshair: { mode: 2 },
       });
       const entry = { ch, dead: false };
       scanCharts.push(entry);
       const se = ch.addCandlestickSeries(CANDLES);
+      scanSeries[t.tf] = se;
       se.setData(f.candles.slice(-50).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
       for (const z of zones) near.push({ tf: t.label, z, last: f.candles[f.candles.length - 1].close });
       const holder = card.querySelector('.scan-chart'), cv = card.querySelector('.scan-zones');
@@ -553,7 +559,8 @@
 
 
   // ---------- Bougies en direct (WebSocket Binance) ----------
-  // La dernière bougie du grand graphique bouge à chaque transaction ; l'analyse complète se refait chaque minute.
+  // Un seul flux pour les 5 unités : chaque bougie (grand graphique et petits graphiques du scanner) bouge en temps réel.
+  // L'analyse complète (order blocks, plan) se refait chaque minute.
   let ws = null, wsToken = 0;
   function connectLive() {
     const token = ++wsToken;
@@ -561,26 +568,33 @@
     const pair = Prices.LIVE[state.sym];
     setLive(false);
     if (!pair || state.imported[state.sym] || !('WebSocket' in window)) return;
-    const tf = state.tf, hosts = ['wss://stream.binance.com:9443', 'wss://data-stream.binance.vision'];
+    const p = pair.toLowerCase();
+    const streams = TFS.map(t => p + '@kline_' + t.tf).join('/');
+    const hosts = ['wss://stream.binance.com:9443', 'wss://data-stream.binance.vision'];
     let hi = 0;
     const open = () => {
       if (token !== wsToken) return;
-      const sock = new WebSocket(hosts[hi] + '/ws/' + pair.toLowerCase() + '@kline_' + tf);
+      const sock = new WebSocket(hosts[hi] + '/stream?streams=' + streams);
       ws = sock;
       sock.onopen = () => setLive(true);
       sock.onmessage = e => {
         if (token !== wsToken) return;
-        const k = JSON.parse(e.data).k;
+        const msg = JSON.parse(e.data), k = msg.data && msg.data.k;
         if (!k) return;
+        const tf = k.i, f = state.frames[tf];
+        if (!f) return;
         const bar = { time: Math.floor(k.t / 1000), open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
-        const f = state.frames[tf];
-        if (!f || state.tf !== tf) return;
         const c = f.candles, last = c[c.length - 1];
         if (last && last.time === bar.time) c[c.length - 1] = bar;
         else if (!last || bar.time > last.time) c.push(bar);
         else return;
-        try { candleSeries.update({ time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close }); } catch (err) { console.warn('live', err.message, bar.time, last && last.time); return; }
-        requestAnimationFrame(drawZones);
+        const ohlc = { time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close };
+        try { if (scanSeries[tf]) scanSeries[tf].update(ohlc); } catch (err) { /* petit graphique recréé entre-temps */ }
+        if (tf === state.tf) {
+          try { candleSeries.update(ohlc); } catch (err) { return; }
+          tick();
+          requestAnimationFrame(drawZones);
+        }
       };
       sock.onclose = () => {
         setLive(false);
@@ -591,6 +605,20 @@
     };
     open();
   }
+
+  // Met à jour le prix actuel et le temps restant avant la clôture de la bougie.
+  function tick() {
+    const f = frame();
+    if (!f || !f.candles.length) { nowLine.applyOptions({ lineVisible: false, axisLabelVisible: false }); return; }
+    const last = f.candles[f.candles.length - 1];
+    const sec = (TFS.find(t => t.tf === state.tf) || TFS[4]).sec;
+    const left = Math.max(0, last.time + sec - Math.floor(Date.now() / 1000));
+    const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), s2 = left % 60;
+    const cd = (h ? h + ':' + String(m).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(s2).padStart(2, '0');
+    nowLine.applyOptions({ price: last.close, lineVisible: true, axisLabelVisible: true, title: cd, color: last.close >= last.open ? '#2f9e44' : '#111111' });
+  }
+  setInterval(tick, 1000);
+
   function setLive(on) {
     const el = $('live');
     el.hidden = !on;
