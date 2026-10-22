@@ -124,6 +124,90 @@
     return out;
   }
 
+  // Taille moyenne d'une bougie (ATR simplifié sur `len` bougies) : sert d'unité pour les marges et les tolérances.
+  function atr(c, len) {
+    len = len || 14;
+    const n = Math.min(len, c.length - 1);
+    let sum = 0;
+    for (let i = c.length - n; i < c.length; i++) sum += Math.max(c[i].high - c[i].low, Math.abs(c[i].high - c[i - 1].close), Math.abs(c[i].low - c[i - 1].close));
+    return sum / n;
+  }
+
+  // Range de travail : du dernier sommet au dernier creux de swing. Au-dessus de 50 % = premium (cher), en dessous = discount.
+  // OTE (optimal trade entry) = retracement de 62 à 79 % du dernier mouvement.
+  function dealingRange(c, sw, trend) {
+    const h = sw.highs[sw.highs.length - 1], l = sw.lows[sw.lows.length - 1];
+    if (!h || !l) return null;
+    const hi = Math.max(h.price, ...c.slice(Math.min(h.i, l.i)).map(x => x.high));
+    const lo = Math.min(l.price, ...c.slice(Math.min(h.i, l.i)).map(x => x.low));
+    const r = hi - lo;
+    if (r <= 0) return null;
+    const last = c[c.length - 1].close;
+    const pos = (last - lo) / r;
+    // Mouvement haussier (le creux précède le sommet) : on cherche à acheter dans le retracement, et inversement.
+    const up = trend ? trend > 0 : l.i < h.i;
+    const ote = up ? { top: hi - 0.62 * r, bottom: hi - 0.79 * r, dir: 1 } : { top: lo + 0.79 * r, bottom: lo + 0.62 * r, dir: -1 };
+    return { high: hi, low: lo, eq: lo + r / 2, pos, zone: pos > 0.5 ? 'premium' : 'discount', ote };
+  }
+
+  // Réservoirs de liquidité : sommets égaux (EQH), creux égaux (EQL), plus haut / plus bas de la veille (PDH / PDL).
+  // Un niveau est « pris » quand le prix l'a dépassé depuis.
+  function liquidity(c, sw, unit) {
+    const out = [];
+    const tol = unit * 0.15;
+    const pairs = (list, type, dir) => {
+      for (let a = list.length - 1; a > 0 && a >= list.length - 8; a--) {
+        for (let b = a - 1; b >= 0 && b >= a - 4; b--) {
+          if (Math.abs(list[a].price - list[b].price) <= tol) {
+            const level = dir > 0 ? Math.max(list[a].price, list[b].price) : Math.min(list[a].price, list[b].price);
+            const after = c.slice(list[a].i + 1);
+            const taken = dir > 0 ? after.some(x => x.high > level) : after.some(x => x.low < level);
+            out.push({ type, level, dir, taken, time: list[a].time });
+            break;
+          }
+        }
+      }
+    };
+    pairs(sw.highs, 'EQH', 1);
+    pairs(sw.lows, 'EQL', -1);
+    const day = t => Math.floor(t / 86400);
+    const today = day(c[c.length - 1].time);
+    const yest = c.filter(x => day(x.time) === today - 1);
+    if (yest.length && yest.length < c.length) {
+      const pdh = Math.max(...yest.map(x => x.high)), pdl = Math.min(...yest.map(x => x.low));
+      const todays = c.filter(x => day(x.time) === today);
+      out.push({ type: 'PDH', level: pdh, dir: 1, taken: todays.some(x => x.high > pdh) });
+      out.push({ type: 'PDL', level: pdl, dir: -1, taken: todays.some(x => x.low < pdl) });
+    }
+    // On garde un seul niveau par prix (à la tolérance près).
+    return out.filter((x, i) => out.findIndex(y => y.type.slice(0, 2) === x.type.slice(0, 2) && Math.abs(y.level - x.level) <= tol) === i);
+  }
+
+  // Note de qualité d'un order block, sur 100 : force du départ, FVG laissé, type de cassure, zone, fraîcheur, liquidité prise avant.
+  function gradeBlocks(c, obs, gaps, range, sw, unit) {
+    const avgBody = c.reduce((s, x) => s + Math.abs(x.close - x.open), 0) / c.length || 1;
+    for (const o of obs) {
+      const why = [];
+      let q = 0;
+      const next = c.slice(o.i + 1, o.i + 4);
+      const disp = Math.max(0, ...next.map(x => Math.abs(x.close - x.open))) / avgBody;
+      if (disp >= 2) { q += 25; why.push('départ violent'); } else if (disp >= 1.4) { q += 15; why.push('bon départ'); }
+      if (gaps.some(g => g.dir === o.dir && g.i > o.i && g.i <= o.i + 3)) { q += 20; why.push('FVG laissé derrière'); }
+      if (o.cause === 'CHoCH') { q += 20; why.push('a provoqué un CHoCH'); } else { q += 12; why.push('a provoqué un BOS'); }
+      if (range) {
+        const mid = (o.top + o.bottom) / 2;
+        if ((o.dir > 0 && mid < range.eq) || (o.dir < 0 && mid > range.eq)) { q += 15; why.push(o.dir > 0 ? 'en zone discount' : 'en zone premium'); }
+      }
+      if (o.status === 'frais') { q += 15; why.push('jamais touché'); } else if (o.status === 'mitigé') q += 4;
+      const prior = (o.dir > 0 ? sw.lows : sw.highs).filter(s => s.i < o.i && s.i >= o.i - 25);
+      if (prior.some(s => (o.dir > 0 ? c[o.i].low < s.price : c[o.i].high > s.price))) { q += 10; why.push('a pris de la liquidité'); }
+      if (o.top - o.bottom > unit * 3) q -= 10; // zone trop large : stop trop loin
+      o.quality = Math.max(0, Math.min(100, q));
+      o.why = why;
+    }
+    return obs;
+  }
+
   function analyze(c) {
     if (!c || c.length < 30) return null;
     const sw = swings(c, 3);
@@ -134,6 +218,10 @@
     const vol = volumeSpikes(c);
     const last = c[c.length - 1];
     const recent = c.length - 40;
+    const unit = atr(c, 14);
+    const range = dealingRange(c, sw, st.trend);
+    gradeBlocks(c, obs, gaps, range, sw, unit);
+    const liq = liquidity(c, sw, unit);
 
     // Score de biais : -100 (vendeur) à +100 (acheteur), à partir des empreintes récentes.
     let score = 0;
@@ -150,9 +238,9 @@
     if (recentVol.length) { const v = recentVol[recentVol.length - 1]; score += 15 * v.dir; reasons.push('Volume anormal (x' + v.ratio.toFixed(1) + ') sur une bougie ' + (v.dir > 0 ? 'acheteuse' : 'vendeuse')); }
     score = Math.max(-100, Math.min(100, score));
 
-    return { swings: sw, events: st.events, trend: st.trend, orderBlocks: obs, fvgs: gaps, sweeps: sw2, volume: vol, score, reasons, last };
+    return { swings: sw, events: st.events, trend: st.trend, orderBlocks: obs, fvgs: gaps, sweeps: sw2, volume: vol, score, reasons, last, atr: unit, range, liquidity: liq };
   }
 
-  const api = { swings, structure, orderBlocks, fvgs, sweeps, volumeSpikes, analyze };
+  const api = { swings, structure, orderBlocks, fvgs, sweeps, volumeSpikes, atr, dealingRange, liquidity, gradeBlocks, analyze };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SMC = api;
 })(typeof self !== 'undefined' ? self : this);

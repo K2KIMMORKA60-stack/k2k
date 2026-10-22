@@ -67,6 +67,7 @@
   chart.timeScale().subscribeVisibleTimeRangeChange(() => requestAnimationFrame(drawZones));
   new ResizeObserver(() => requestAnimationFrame(drawZones)).observe(chartEl);
 
+  let liqLines = [];
   function renderChart() {
     const empty = $('chart-empty');
     const f = frame();
@@ -84,6 +85,9 @@
     for (const w of s.sweeps.slice(narrow ? -2 : -6)) markers.push({ time: w.time, position: w.dir > 0 ? 'belowBar' : 'aboveBar', color: COL.warn, shape: 'circle', text: '' });
     markers.sort((a, b) => a.time - b.time);
     candleSeries.setMarkers(markers);
+    // Niveaux de liquidité encore intacts (EQH, EQL, PDH, PDL) en pointillés gris.
+    liqLines.forEach(l => candleSeries.removePriceLine(l)); liqLines = [];
+    for (const l of s.liquidity.filter(l => !l.taken)) liqLines.push(candleSeries.createPriceLine({ price: l.level, color: '#8d98ae', lineWidth: 1, lineStyle: 1, axisLabelVisible: false, title: l.type }));
     // On recadre seulement quand on change de marché ou d'unité, pas à chaque actualisation.
     const key = state.sym + state.tf;
     if (state.fitted !== key) {
@@ -119,7 +123,7 @@
         tr.textContent = v >= 15 ? '▲ Haussier' : v <= -15 ? '▼ Baissier' : '■ Neutre';
         tr.className = 'mtf-trend ' + (v >= 15 ? 'bull' : v <= -15 ? 'bear' : 'flat');
         const ev = f.smc.events[f.smc.events.length - 1];
-        last.textContent = ev ? ev.type + (ev.dir > 0 ? ' ↑ ' : ' ↓ ') + price(ev.price) : 'Aucune cassure';
+        last.textContent = (ev ? ev.type + (ev.dir > 0 ? ' ↑ ' : ' ↓ ') + price(ev.price) : 'Aucune cassure') + (f.smc.range ? ' · ' + f.smc.range.zone + ' ' + Math.round(f.smc.range.pos * 100) + '%' : '');
         sc.textContent = (v > 0 ? '+' : '') + v;
         sc.className = 'mtf-score ' + (v >= 15 ? 'bull' : v <= -15 ? 'bear' : '');
       }
@@ -196,6 +200,88 @@
     }
   }
 
+
+  // ---------- Plan de trade et analyse rédigée ----------
+  let planLines = [];
+  function cotBias() { const d = state.cot[state.sym]; return d && d.summary ? d.summary.bias : null; }
+
+  function renderPlan() {
+    const p = Plan.build(state.frames, cotBias());
+    const pill = $('plan-pill'), lv = $('plan-levels'), txt = $('plan-text');
+    lv.textContent = ''; txt.textContent = '';
+    planLines.forEach(l => candleSeries.removePriceLine(l)); planLines = [];
+    $('plan-conf').hidden = true;
+    if (!p) { pill.textContent = '—'; pill.className = 'pill'; para(txt, state.loading ? 'Analyse en cours…' : 'Pas encore de bougies pour ce marché.'); return; }
+    if (p.status === 'wait') {
+      pill.textContent = 'Pas de setup'; pill.className = 'pill';
+      para(txt, '<b>En attente.</b> ' + esc(p.reason));
+      narrative(txt, null);
+      return;
+    }
+    const buy = p.dir > 0;
+    const labels = { active: buy ? 'Achat · en zone' : 'Vente · en zone', pending: buy ? 'Achat · ordre limite' : 'Vente · ordre limite', weak: 'Setup faible' };
+    pill.textContent = labels[p.status];
+    pill.className = 'pill ' + (p.status === 'weak' ? 'warn' : buy ? 'bull' : 'bear');
+    const tile = (cls, k, v, sub) => { const d = document.createElement('div'); d.className = 'level ' + cls; d.innerHTML = '<span class="k"></span><span class="v"></span><span class="s"></span>'; d.children[0].textContent = k; d.children[1].textContent = v; d.children[2].textContent = sub; lv.appendChild(d); };
+    tile('entry', 'Entrée', price(p.entry), p.atMarket ? 'au marché · OB ' + p.tf : 'limite · OB ' + p.tf);
+    tile('stop', 'Stop', price(p.stop), '−1 R · ' + price(p.risk, p.entry) + ' de risque');
+    tile('tp', 'TP1', p.tp1 ? price(p.tp1.price) : '—', p.tp1 ? '+' + p.rr1.toFixed(1) + ' R · ' + p.tp1.label : 'aucune cible');
+    tile('tp', 'TP2', p.tp2 ? price(p.tp2.price) : '—', p.tp2 ? '+' + p.rr2.toFixed(1) + ' R · ' + p.tp2.label : 'ratio < ' + Plan.MIN_RR + ' R');
+    $('plan-conf').hidden = false;
+    $('plan-conf-val').textContent = p.checks.filter(c => c.ok).length + ' / ' + p.checks.length;
+    $('plan-conf-fill').style.width = p.confluence + '%';
+    const ul = $('plan-checks'); ul.textContent = '';
+    for (const c of p.checks) { const li = document.createElement('li'); li.textContent = c.text; if (!c.ok) li.className = 'no'; ul.appendChild(li); }
+    const line = (pr, color, title, style) => planLines.push(candleSeries.createPriceLine({ price: pr, color, lineWidth: 2, lineStyle: style, axisLabelVisible: true, title }));
+    line(p.entry, '#c4962a', 'Entrée', 0);
+    line(p.stop, PAPER.sell, 'Stop', 2);
+    if (p.tp1) line(p.tp1.price, PAPER.buy, 'TP1', 2);
+    if (p.tp2) line(p.tp2.price, PAPER.buy, 'TP2', 2);
+    narrative(txt, p);
+  }
+
+  function para(box, html) { const el = document.createElement('p'); el.innerHTML = html; box.appendChild(el); }
+  function esc(t) { return String(t).replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch])); }
+
+  // Analyse rédigée comme un analyste : contexte de fond, institutions, liquidité, scénario et invalidation.
+  function narrative(box, p) {
+    const ctx = [];
+    for (const tf of ['4h', '1h']) {
+      const f = state.frames[tf];
+      if (!f) continue;
+      const s = f.smc, ev = s.events[s.events.length - 1];
+      let t = 'En ' + tf + ', structure ' + (s.trend > 0 ? 'haussière' : s.trend < 0 ? 'baissière' : 'sans direction');
+      if (ev) t += ' (dernier ' + ev.type + (ev.dir > 0 ? ' ↑ ' : ' ↓ ') + price(ev.price) + ')';
+      if (s.range) t += ', prix en zone ' + s.range.zone + ' à ' + Math.round(s.range.pos * 100) + ' % du range';
+      ctx.push(t);
+    }
+    if (ctx.length) para(box, '<b>Contexte.</b> ' + esc(ctx.join('. ')) + '.');
+    const d = state.cot[state.sym];
+    if (d && d.summary) {
+      const f = d.summary.groups.find(g => g.id === 'funds'), b = d.summary.groups.find(g => g.id === 'banks');
+      para(box, '<b>Institutions.</b> ' + esc(f.name.split(' (')[0] + ' ' + (f.month >= 0 ? 'acheteurs' : 'vendeurs') + ' sur 4 semaines (' + (f.month > 0 ? '+' : '') + fmt.format(Math.round(f.month)) + ' contrats), indice ' + f.index + '/100. ' + b.name.split(' (')[0] + ' nets ' + (b.net >= 0 ? 'acheteurs' : 'vendeurs') + '.'));
+    }
+    const liqs = [];
+    for (const tf of ['1h', '15m']) {
+      const f = state.frames[tf];
+      if (!f) continue;
+      for (const l of f.smc.liquidity.filter(l => !l.taken).slice(0, 3)) liqs.push(l.type + ' ' + tf + ' à ' + price(l.level));
+    }
+    if (liqs.length) para(box, '<b>Liquidité en attente.</b> ' + esc(liqs.join(', ')) + '. Le prix a tendance à aller chercher ces niveaux.');
+    if (p && p.status !== 'wait') {
+      const buy = p.dir > 0;
+      let t = (buy ? 'Achat' : 'Vente') + (p.atMarket ? ' : le prix est déjà dans' : ' sur le retour dans') + ' l\'order block ' + p.tf + ' ' + price(p.ob.bottom) + ' – ' + price(p.ob.top) + ' (note ' + p.ob.quality + '/100 : ' + p.ob.why.join(', ') + '). ';
+      t += 'Stop ' + (buy ? 'sous ' : 'au-dessus de ') + price(p.stop) + '. ';
+      if (p.tp1) t += 'TP1 sur ' + p.tp1.label + ' (' + p.rr1.toFixed(1) + ' R)';
+      if (p.tp2 && p.tp2 !== p.tp1) t += ', TP2 sur ' + p.tp2.label + ' (' + p.rr2.toFixed(1) + ' R)';
+      t += '.';
+      if (p.status === 'weak') t += ' Le ratio est inférieur à ' + Plan.MIN_RR + ' R : setup à éviter ou à réduire.';
+      para(box, '<b>Scénario.</b> ' + esc(t));
+      para(box, '<b>Invalidation.</b> ' + esc('Le scénario tombe si une bougie ' + p.tf + ' clôture ' + (buy ? 'sous ' : 'au-dessus de ') + price(buy ? p.ob.bottom : p.ob.top) + '. Confluences : ' + p.confluence + ' %.'));
+    }
+    para(box, '<span class="source">Aide à la décision, pas un conseil financier. Gère toujours ton risque.</span>');
+  }
+
   // ---------- Empreintes ----------
   function renderEvents() {
     const list = $('events');
@@ -221,8 +307,10 @@
     }
   }
 
-  function price(p) {
-    const d = p >= 1000 ? 2 : p >= 10 ? 3 : 5;
+  // `ref` donne l'échelle quand on affiche un écart (un risque de 8 points sur l'or garde 2 décimales).
+  function price(p, ref) {
+    const r = ref || p;
+    const d = r >= 1000 ? 2 : r >= 10 ? 3 : 5;
     return p.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
   }
   function when(t) {
@@ -411,10 +499,10 @@
     if (state.cot[sym] && !state.cot[sym].error) return;
     try { state.cot[sym] = await COT.fetchMarket(sym, 156); }
     catch (e) { state.cot[sym] = { error: e.message }; }
-    if (sym === state.sym) { renderCot(); renderVerdict(); }
+    if (sym === state.sym) { renderCot(); renderVerdict(); renderPlan(); }
   }
 
-  function renderAll() { renderMtf(); renderScanner(); renderChart(); renderEvents(); renderCot(); renderVerdict(); }
+  function renderAll() { renderMtf(); renderScanner(); renderChart(); renderPlan(); renderEvents(); renderCot(); renderVerdict(); }
 
   // ---------- Interactions ----------
   function selectMarket(sym) {

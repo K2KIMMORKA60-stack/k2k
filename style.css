@@ -155,3 +155,24 @@ main > .disclaimer { text-align: center; margin-inline: auto; }
 .tag.buy { color: var(--buy); } .tag.sell { color: var(--sell); }
 .ob-bull { background: color-mix(in srgb, var(--buy) 30%, transparent); border-color: var(--buy); }
 .ob-bear { background: color-mix(in srgb, var(--sell) 30%, transparent); border-color: var(--sell); }
+
+/* Plan de trade : quatre niveaux lisibles d'un coup d'œil, puis les confluences et l'analyse rédigée. */
+.levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.level { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.level .k { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.level .v { font: 600 16px var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.level .s { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.level.entry .v { color: var(--gold); } .level.stop .v { color: var(--bear); } .level.tp .v { color: var(--bull); }
+.conf { display: flex; flex-direction: column; gap: 6px; }
+.conf-track { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.conf-fill { height: 100%; background: var(--gold); width: 0; transition: width 0.4s ease; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 16px; font-size: 13px; }
+.checks li { display: flex; gap: 8px; align-items: baseline; }
+.checks li::before { content: '✓'; font-weight: 700; color: var(--bull); }
+.checks li.no { color: var(--muted); }
+.checks li.no::before { content: '✗'; color: var(--muted); }
+.analysis { display: flex; flex-direction: column; gap: 8px; font-size: 14px; max-width: 75ch; }
+.analysis p { margin: 0; }
+.analysis b { color: var(--gold); font-weight: 600; }
+@media (max-width: 520px) { .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { .conf-fill { transition: none; } }

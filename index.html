@@ -54,6 +54,20 @@
     </div>
   </section>
 
+  <section class="panel plan" aria-live="polite">
+    <div class="panel-head">
+      <h2>Plan de trade</h2>
+      <span class="pill" id="plan-pill">—</span>
+    </div>
+    <div class="levels" id="plan-levels"></div>
+    <div class="conf" id="plan-conf" hidden>
+      <div class="g-label"><span>Confluences</span><span class="g-sub" id="plan-conf-val"></span></div>
+      <div class="conf-track"><div class="conf-fill" id="plan-conf-fill"></div></div>
+      <ul class="checks" id="plan-checks"></ul>
+    </div>
+    <div class="analysis" id="plan-text"></div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
       <h2>Unités de temps</h2>
@@ -138,6 +152,7 @@
 <script src="smc.js"></script>
 <script src="cot.js"></script>
 <script src="data.js"></script>
+<script src="plan.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
