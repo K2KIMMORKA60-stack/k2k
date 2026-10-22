@@ -178,3 +178,6 @@ main > .disclaimer { text-align: center; margin-inline: auto; }
 @media (prefers-reduced-motion: reduce) { .conf-fill { transition: none; } }
 
 .scan-zones { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.live { font: 500 11px var(--mono); color: var(--bull); margin-left: 6px; letter-spacing: 0.04em; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .live { animation: none; } }

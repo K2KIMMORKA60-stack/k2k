@@ -38,7 +38,7 @@
     layout: { background: { color: PAPER.bg }, textColor: PAPER.ink, fontFamily: 'IBM Plex Mono, monospace' },
     grid: { vertLines: { visible: false }, horzLines: { visible: false } },
     rightPriceScale: { borderColor: PAPER.grid },
-    timeScale: { borderColor: PAPER.grid, timeVisible: true, secondsVisible: false },
+    timeScale: { borderColor: PAPER.grid, timeVisible: true, secondsVisible: false, rightOffset: 12 },
     crosshair: { mode: 0 },
   });
   const candleSeries = chart.addCandlestickSeries(CANDLES);
@@ -82,6 +82,7 @@
   function drawZones() {
     const f = frame();
     drawBoxes(zones, chartEl, chart, candleSeries, f ? liveZones(f, view.clean ? 4 : 6) : [], !view.clean);
+    if (f) drawPosition(f);
     if (!f || view.clean) return;
     // Vue détaillée : on ajoute les FVG en pointillés dorés.
     const ctx = zones.getContext('2d');
@@ -94,6 +95,28 @@
   }
   chart.timeScale().subscribeVisibleTimeRangeChange(() => requestAnimationFrame(drawZones));
   new ResizeObserver(() => requestAnimationFrame(drawZones)).observe(chartEl);
+
+  // Position façon TradingView : vert de l'entrée au TP1, rose de l'entrée au stop, à droite de la dernière bougie.
+  function drawPosition(f) {
+    const p = state.plan;
+    if (!p || p.status === 'wait' || !p.tp1) return;
+    const ctx = zones.getContext('2d');
+    const r = chartEl.getBoundingClientRect();
+    const plotW = r.width - candleSeries.priceScale().width();
+    const ts = chart.timeScale();
+    const lastX = ts.timeToCoordinate(f.candles[f.candles.length - 1].time);
+    if (lastX == null) return;
+    const x = Math.min(lastX + 8, plotW - 30), w = Math.max(30, plotW - x - 6);
+    const yE = candleSeries.priceToCoordinate(p.entry), yT = candleSeries.priceToCoordinate(p.tp1.price), yS = candleSeries.priceToCoordinate(p.stop);
+    if (yE == null || yT == null || yS == null) return;
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(90,170,90,0.28)'; ctx.fillRect(x, Math.min(yE, yT), w, Math.abs(yT - yE));
+    ctx.fillStyle = 'rgba(240,150,130,0.35)'; ctx.fillRect(x, Math.min(yE, yS), w, Math.abs(yS - yE));
+    ctx.strokeStyle = '#6b6b6b'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, yE + 0.5); ctx.lineTo(x + w, yE + 0.5); ctx.stroke();
+    ctx.fillStyle = '#3d6b3d'; ctx.font = '600 11px IBM Plex Mono, monospace';
+    ctx.fillText('TP1', x + w / 2 - 10, (yE + yT) / 2 + 4);
+    ctx.fillStyle = '#9a4a3a'; ctx.fillText('SL', x + w / 2 - 7, (yE + yS) / 2 + 4);
+  }
 
   let liqLines = [];
   function renderChart() {
@@ -120,7 +143,7 @@
     const key = state.sym + state.tf;
     if (state.fitted !== key) {
       state.fitted = key;
-      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, f.candles.length - (narrow ? 40 : 100)), to: f.candles.length + 3 });
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, f.candles.length - (narrow ? 40 : 100)), to: f.candles.length + (narrow ? 10 : 18) });
     }
     requestAnimationFrame(drawZones);
   }
@@ -165,7 +188,7 @@
   const scanCharts = [];
   function renderScanner() {
     const grid = $('scan-grid');
-    while (scanCharts.length) scanCharts.pop().remove();
+    while (scanCharts.length) { const sc = scanCharts.pop(); sc.dead = true; if (sc.ro) sc.ro.disconnect(); sc.ch.remove(); }
     grid.textContent = '';
     const near = [];
     for (const t of TFS) {
@@ -188,14 +211,16 @@
         rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true },
         handleScroll: false, handleScale: false, crosshair: { mode: 2 },
       });
-      scanCharts.push(ch);
+      const entry = { ch, dead: false };
+      scanCharts.push(entry);
       const se = ch.addCandlestickSeries(CANDLES);
       se.setData(f.candles.slice(-50).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
       for (const z of zones) near.push({ tf: t.label, z, last: f.candles[f.candles.length - 1].close });
       const holder = card.querySelector('.scan-chart'), cv = card.querySelector('.scan-zones');
-      const redraw = () => requestAnimationFrame(() => drawBoxes(cv, holder, ch, se, zones, false));
+      const redraw = () => requestAnimationFrame(() => { if (!entry.dead) drawBoxes(cv, holder, ch, se, zones, false); });
       ch.timeScale().subscribeVisibleTimeRangeChange(redraw);
-      new ResizeObserver(redraw).observe(holder);
+      entry.ro = new ResizeObserver(redraw);
+      entry.ro.observe(holder);
       ch.timeScale().fitContent();
     }
     const body = $('near-body');
@@ -224,6 +249,8 @@
 
   function renderPlan() {
     const p = Plan.build(state.frames, cotBias());
+    state.plan = p;
+    requestAnimationFrame(drawZones);
     const pill = $('plan-pill'), lv = $('plan-levels'), txt = $('plan-text');
     lv.textContent = ''; txt.textContent = '';
     planLines.forEach(l => candleSeries.removePriceLine(l)); planLines = [];
@@ -482,6 +509,7 @@
       renderAll(); return;
     }
     state.frames = frames;
+    if (!silent) connectLive();
     $('chart-source').textContent = 'Binance ' + Prices.LIVE[sym] + (sym === 'XAUUSD' ? ' (jeton adossé à l\'or)' : '') + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     renderAll();
   }
@@ -523,12 +551,58 @@
 
   function renderAll() { renderMtf(); renderScanner(); renderChart(); renderPlan(); renderEvents(); renderCot(); renderVerdict(); }
 
+
+  // ---------- Bougies en direct (WebSocket Binance) ----------
+  // La dernière bougie du grand graphique bouge à chaque transaction ; l'analyse complète se refait chaque minute.
+  let ws = null, wsToken = 0;
+  function connectLive() {
+    const token = ++wsToken;
+    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    const pair = Prices.LIVE[state.sym];
+    setLive(false);
+    if (!pair || state.imported[state.sym] || !('WebSocket' in window)) return;
+    const tf = state.tf, hosts = ['wss://stream.binance.com:9443', 'wss://data-stream.binance.vision'];
+    let hi = 0;
+    const open = () => {
+      if (token !== wsToken) return;
+      const sock = new WebSocket(hosts[hi] + '/ws/' + pair.toLowerCase() + '@kline_' + tf);
+      ws = sock;
+      sock.onopen = () => setLive(true);
+      sock.onmessage = e => {
+        if (token !== wsToken) return;
+        const k = JSON.parse(e.data).k;
+        if (!k) return;
+        const bar = { time: Math.floor(k.t / 1000), open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
+        const f = state.frames[tf];
+        if (!f || state.tf !== tf) return;
+        const c = f.candles, last = c[c.length - 1];
+        if (last && last.time === bar.time) c[c.length - 1] = bar;
+        else if (!last || bar.time > last.time) c.push(bar);
+        else return;
+        try { candleSeries.update({ time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close }); } catch (err) { console.warn('live', err.message, bar.time, last && last.time); return; }
+        requestAnimationFrame(drawZones);
+      };
+      sock.onclose = () => {
+        setLive(false);
+        if (token !== wsToken) return;
+        hi = (hi + 1) % hosts.length;
+        setTimeout(open, 3000);
+      };
+    };
+    open();
+  }
+  function setLive(on) {
+    const el = $('live');
+    el.hidden = !on;
+  }
+
   // ---------- Interactions ----------
   function selectMarket(sym) {
     state.sym = sym;
     store.set('sym', sym);
     document.querySelectorAll('.markets button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.sym === sym)));
     state.fitted = '';
+    connectLive();
     renderCot();
     loadCandles();
     loadCot(sym);
@@ -537,6 +611,7 @@
     state.tf = tf;
     store.set('tf', tf);
     renderMtf(); renderChart(); renderEvents();
+    connectLive();
     document.querySelectorAll('.scan-card').forEach((c, i) => c.setAttribute('aria-pressed', String(TFS[i].tf === tf)));
   }
   document.querySelectorAll('.markets button').forEach(b => b.addEventListener('click', () => selectMarket(b.dataset.sym)));
