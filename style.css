@@ -152,9 +152,9 @@ main > .disclaimer { text-align: center; margin-inline: auto; }
 .scan-head span { font: 400 11px var(--mono); }
 .scan-chart { height: 220px; position: relative; }
 .near td .tag { font: 600 11px var(--mono); letter-spacing: 0.04em; }
-.tag.buy { color: var(--buy); } .tag.sell { color: var(--sell); }
-.ob-bull { background: color-mix(in srgb, var(--buy) 30%, transparent); border-color: var(--buy); }
-.ob-bear { background: color-mix(in srgb, var(--sell) 30%, transparent); border-color: var(--sell); }
+.tag.buy { color: #9aa3b2; } .tag.sell { color: #f0a08c; }
+.ob-bull { background: #d6d6d6; border: 1px solid #8f8f8f; }
+.ob-bear { background: #f6cdbf; border: 1px solid #d98c78; }
 
 /* Plan de trade : quatre niveaux lisibles d'un coup d'œil, puis les confluences et l'analyse rédigée. */
 .levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
@@ -176,3 +176,5 @@ main > .disclaimer { text-align: center; margin-inline: auto; }
 .analysis b { color: var(--gold); font-weight: 600; }
 @media (max-width: 520px) { .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .conf-fill { transition: none; } }
+
+.scan-zones { position: absolute; inset: 0; pointer-events: none; z-index: 2; }

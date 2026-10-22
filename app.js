@@ -16,7 +16,12 @@
     { tf: '5m', label: '5m', sec: 300, weight: 1 },
   ];
   const PAPER = { bg: C('--paper'), grid: C('--paper-line'), ink: C('--paper-ink'), buy: C('--buy'), sell: C('--sell') };
-  const CANDLES = { upColor: '#1f9d74', downColor: '#e0444f', borderUpColor: '#1f9d74', borderDownColor: '#e0444f', wickUpColor: '#1f9d74', wickDownColor: '#e0444f' };
+  // Style « graphique propre » : corps vert en hausse, noir en baisse, contours et mèches noirs fins.
+  const CANDLES = { upColor: '#3fbf4f', downColor: '#111111', borderUpColor: '#111111', borderDownColor: '#111111', wickUpColor: '#111111', wickDownColor: '#111111' };
+  // Order blocks : gris pour les blocs haussiers (zone d'achat), rose saumon pour les blocs baissiers (zone de vente).
+  const OB_STYLE = { buy: { fill: 'rgba(170,170,170,0.35)', stroke: '#8f8f8f' }, sell: { fill: 'rgba(240,160,140,0.40)', stroke: '#d98c78' } };
+  const view = { clean: true };
+  try { view.clean = localStorage.getItem('k2k.clean') !== '0'; } catch (e) { /* stockage indisponible */ }
   const state = { sym: 'XAUUSD', tf: '15m', frames: {}, source: '', cot: {}, imported: {}, fitted: '' };
   const frame = () => state.frames[state.tf] || null;
   const fmt = new Intl.NumberFormat('fr-FR');
@@ -31,37 +36,60 @@
     autoSize: true,
     localization: { locale: 'fr-FR' },
     layout: { background: { color: PAPER.bg }, textColor: PAPER.ink, fontFamily: 'IBM Plex Mono, monospace' },
-    grid: { vertLines: { color: PAPER.grid }, horzLines: { color: PAPER.grid } },
+    grid: { vertLines: { visible: false }, horzLines: { visible: false } },
     rightPriceScale: { borderColor: PAPER.grid },
     timeScale: { borderColor: PAPER.grid, timeVisible: true, secondsVisible: false },
     crosshair: { mode: 0 },
   });
   const candleSeries = chart.addCandlestickSeries(CANDLES);
 
-  function drawZones() {
-    const r = chartEl.getBoundingClientRect();
+  // Dessine des rectangles fins d'order blocks sur un calque au-dessus d'un graphique.
+  function drawBoxes(canvas, el, ch, series, obs, labels) {
+    const r = el.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    zones.width = r.width * dpr; zones.height = r.height * dpr;
-    const ctx = zones.getContext('2d');
+    canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+    const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, r.width, r.height);
-    const f = frame();
-    if (!f) return;
-    const ts = chart.timeScale();
-    const plotW = r.width - candleSeries.priceScale().width();
-    const box = (t, top, bottom, fill, stroke, dash) => {
-      let x = ts.timeToCoordinate(t);
-      const y1 = candleSeries.priceToCoordinate(top), y2 = candleSeries.priceToCoordinate(bottom);
-      if (y1 == null || y2 == null) return;
+    const ts = ch.timeScale();
+    const plotW = r.width - series.priceScale().width();
+    for (const o of obs) {
+      let x = ts.timeToCoordinate(o.time);
+      const y1 = series.priceToCoordinate(o.top), y2 = series.priceToCoordinate(o.bottom);
+      if (y1 == null || y2 == null) continue;
       if (x == null) x = 0;
-      if (x > plotW) return;
-      ctx.fillStyle = fill; ctx.fillRect(x, y1, plotW - x, y2 - y1);
-      ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.setLineDash(dash || []);
-      ctx.strokeRect(x + 0.5, y1 + 0.5, plotW - x - 1, y2 - y1);
-    };
-    for (const g of f.smc.fvgs.filter(g => !g.filled).slice(-6)) box(g.time, g.top, g.bottom, 'rgba(196,150,40,0.10)', 'rgba(196,150,40,0.7)', [4, 3]);
-    for (const o of f.smc.orderBlocks.filter(o => o.status !== 'invalidé').slice(-4)) {
-      box(o.time, o.top, o.bottom, o.dir > 0 ? 'rgba(21,154,140,0.14)' : 'rgba(224,68,79,0.14)', o.dir > 0 ? PAPER.buy : PAPER.sell);
+      if (x > plotW) continue;
+      const st = o.dir > 0 ? OB_STYLE.buy : OB_STYLE.sell;
+      const h = Math.max(3, y2 - y1);
+      ctx.fillStyle = st.fill; ctx.fillRect(x, y1, plotW - x, h);
+      ctx.strokeStyle = st.stroke; ctx.lineWidth = 1; ctx.setLineDash([]);
+      ctx.strokeRect(Math.round(x) + 0.5, Math.round(y1) + 0.5, Math.round(plotW - x) - 1, Math.round(h));
+      if (labels) {
+        ctx.fillStyle = st.stroke; ctx.font = '600 9px IBM Plex Mono, monospace';
+        ctx.fillText(o.dir > 0 ? 'ACHAT' : 'VENTE', plotW - 40, y1 - 3);
+      }
+    }
+  }
+
+  // Zones encore valides, les plus proches du prix d'abord.
+  function liveZones(f, n) {
+    const last = f.candles[f.candles.length - 1].close;
+    return f.smc.orderBlocks.filter(o => o.status !== 'invalidé')
+      .map(o => ({ ...o, level: o.dir > 0 ? o.top : o.bottom, dist: Math.abs((o.dir > 0 ? o.top : o.bottom) - last) / last }))
+      .sort((a, b) => a.dist - b.dist).slice(0, n || 5);
+  }
+
+  function drawZones() {
+    const f = frame();
+    drawBoxes(zones, chartEl, chart, candleSeries, f ? liveZones(f, view.clean ? 4 : 6) : [], !view.clean);
+    if (!f || view.clean) return;
+    // Vue détaillée : on ajoute les FVG en pointillés dorés.
+    const ctx = zones.getContext('2d');
+    const plotW = chartEl.getBoundingClientRect().width - candleSeries.priceScale().width();
+    for (const g of f.smc.fvgs.filter(g => !g.filled).slice(-6)) {
+      const x = chart.timeScale().timeToCoordinate(g.time) ?? 0, y1 = candleSeries.priceToCoordinate(g.top), y2 = candleSeries.priceToCoordinate(g.bottom);
+      if (y1 == null || y2 == null || x > plotW) continue;
+      ctx.strokeStyle = 'rgba(196,150,40,0.8)'; ctx.setLineDash([4, 3]); ctx.strokeRect(x + 0.5, y1 + 0.5, plotW - x - 1, y2 - y1);
     }
   }
   chart.timeScale().subscribeVisibleTimeRangeChange(() => requestAnimationFrame(drawZones));
@@ -81,13 +109,13 @@
     candleSeries.setData(f.candles.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
     const s = f.smc, markers = [];
     const narrow = chartEl.clientWidth < 600;
-    for (const e of s.events.slice(narrow ? -4 : -10)) markers.push({ time: e.time, position: e.dir > 0 ? 'belowBar' : 'aboveBar', color: e.type === 'CHoCH' ? COL.gold : (e.dir > 0 ? COL.bull : COL.bear), shape: e.dir > 0 ? 'arrowUp' : 'arrowDown', text: e.type });
-    for (const w of s.sweeps.slice(narrow ? -2 : -6)) markers.push({ time: w.time, position: w.dir > 0 ? 'belowBar' : 'aboveBar', color: COL.warn, shape: 'circle', text: '' });
+    if (!view.clean) for (const e of s.events.slice(narrow ? -4 : -10)) markers.push({ time: e.time, position: e.dir > 0 ? 'belowBar' : 'aboveBar', color: e.type === 'CHoCH' ? COL.gold : (e.dir > 0 ? COL.bull : COL.bear), shape: e.dir > 0 ? 'arrowUp' : 'arrowDown', text: e.type });
+    if (!view.clean) for (const w of s.sweeps.slice(narrow ? -2 : -6)) markers.push({ time: w.time, position: w.dir > 0 ? 'belowBar' : 'aboveBar', color: COL.warn, shape: 'circle', text: '' });
     markers.sort((a, b) => a.time - b.time);
     candleSeries.setMarkers(markers);
     // Niveaux de liquidité encore intacts (EQH, EQL, PDH, PDL) en pointillés gris.
     liqLines.forEach(l => candleSeries.removePriceLine(l)); liqLines = [];
-    for (const l of s.liquidity.filter(l => !l.taken)) liqLines.push(candleSeries.createPriceLine({ price: l.level, color: '#8d98ae', lineWidth: 1, lineStyle: 1, axisLabelVisible: false, title: l.type }));
+    if (!view.clean) for (const l of s.liquidity.filter(l => !l.taken)) liqLines.push(candleSeries.createPriceLine({ price: l.level, color: '#8d98ae', lineWidth: 1, lineStyle: 1, axisLabelVisible: false, title: l.type }));
     // On recadre seulement quand on change de marché ou d'unité, pas à chaque actualisation.
     const key = state.sym + state.tf;
     if (state.fitted !== key) {
@@ -134,14 +162,6 @@
 
 
   // ---------- Scanner d'order blocks ----------
-  // Zones encore valides (non cassées), les plus proches du prix d'abord.
-  function liveZones(f) {
-    const last = f.candles[f.candles.length - 1].close;
-    return f.smc.orderBlocks.filter(o => o.status !== 'invalidé')
-      .map(o => ({ ...o, level: o.dir > 0 ? o.top : o.bottom, dist: Math.abs((o.dir > 0 ? o.top : o.bottom) - last) / last }))
-      .sort((a, b) => a.dist - b.dist).slice(0, 5);
-  }
-
   const scanCharts = [];
   function renderScanner() {
     const grid = $('scan-grid');
@@ -153,7 +173,7 @@
       const card = document.createElement('button');
       card.type = 'button'; card.className = 'scan-card';
       card.setAttribute('aria-pressed', String(t.tf === state.tf));
-      card.innerHTML = '<div class="scan-head"><b></b><span></span></div><div class="scan-chart"></div>';
+      card.innerHTML = '<div class="scan-head"><b></b><span></span></div><div class="scan-chart"><canvas class="scan-zones" aria-hidden="true"></canvas></div>';
       card.querySelector('b').textContent = state.sym + ' · ' + t.label;
       grid.appendChild(card);
       card.addEventListener('click', () => { selectTf(t.tf); $('chart').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
@@ -164,21 +184,18 @@
       const ch = LightweightCharts.createChart(card.querySelector('.scan-chart'), {
         autoSize: true, localization: { locale: 'fr-FR' },
         layout: { background: { color: PAPER.bg }, textColor: PAPER.ink, fontFamily: 'IBM Plex Mono, monospace', fontSize: 10 },
-        grid: { vertLines: { visible: false }, horzLines: { color: PAPER.grid } },
+        grid: { vertLines: { visible: false }, horzLines: { visible: false } },
         rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true },
         handleScroll: false, handleScale: false, crosshair: { mode: 2 },
       });
       scanCharts.push(ch);
       const se = ch.addCandlestickSeries(CANDLES);
       se.setData(f.candles.slice(-120).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
-      for (const z of zones) {
-        se.createPriceLine({
-          price: z.level, color: z.dir > 0 ? PAPER.buy : PAPER.sell, lineWidth: 1,
-          lineStyle: z.status === 'frais' ? LightweightCharts.LineStyle.Solid : LightweightCharts.LineStyle.Dotted,
-          axisLabelVisible: false, title: z.dir > 0 ? 'ZONE ACHAT' : 'ZONE VENTE',
-        });
-        near.push({ tf: t.label, z, last: f.candles[f.candles.length - 1].close });
-      }
+      for (const z of zones) near.push({ tf: t.label, z, last: f.candles[f.candles.length - 1].close });
+      const holder = card.querySelector('.scan-chart'), cv = card.querySelector('.scan-zones');
+      const redraw = () => requestAnimationFrame(() => drawBoxes(cv, holder, ch, se, zones, false));
+      ch.timeScale().subscribeVisibleTimeRangeChange(redraw);
+      new ResizeObserver(redraw).observe(holder);
       ch.timeScale().fitContent();
     }
     const body = $('near-body');
@@ -233,10 +250,12 @@
     const ul = $('plan-checks'); ul.textContent = '';
     for (const c of p.checks) { const li = document.createElement('li'); li.textContent = c.text; if (!c.ok) li.className = 'no'; ul.appendChild(li); }
     const line = (pr, color, title, style) => planLines.push(candleSeries.createPriceLine({ price: pr, color, lineWidth: 2, lineStyle: style, axisLabelVisible: true, title }));
+    if (!view.clean) {
     line(p.entry, '#c4962a', 'Entrée', 0);
     line(p.stop, PAPER.sell, 'Stop', 2);
     if (p.tp1) line(p.tp1.price, PAPER.buy, 'TP1', 2);
     if (p.tp2) line(p.tp2.price, PAPER.buy, 'TP2', 2);
+    }
     narrative(txt, p);
   }
 
@@ -521,6 +540,14 @@
     document.querySelectorAll('.scan-card').forEach((c, i) => c.setAttribute('aria-pressed', String(TFS[i].tf === tf)));
   }
   document.querySelectorAll('.markets button').forEach(b => b.addEventListener('click', () => selectMarket(b.dataset.sym)));
+  const viewBtn = $('view-toggle');
+  const syncView = () => { viewBtn.textContent = view.clean ? 'Vue détaillée' : 'Vue propre'; viewBtn.setAttribute('aria-pressed', String(!view.clean)); };
+  syncView();
+  viewBtn.addEventListener('click', () => {
+    view.clean = !view.clean;
+    try { localStorage.setItem('k2k.clean', view.clean ? '1' : '0'); } catch (e) { /* stockage indisponible */ }
+    syncView(); renderChart(); renderPlan();
+  });
   $('refresh').addEventListener('click', () => { delete state.cot[state.sym]; delete state.imported[state.sym]; loadCandles(); loadCot(state.sym); });
   $('csv').addEventListener('change', async e => {
     const file = e.target.files[0];

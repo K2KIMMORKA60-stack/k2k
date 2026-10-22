@@ -94,6 +94,7 @@
     <div class="panel-head">
       <h2 id="chart-title">Graphique</h2>
       <div class="controls">
+        <button class="btn" id="view-toggle" type="button">Vue détaillée</button>
         <button class="btn" id="refresh" type="button">Actualiser</button>
         <label class="btn" for="csv">Importer un fichier</label>
         <input type="file" id="csv" accept=".csv,.txt,text/csv,text/plain" hidden>
@@ -105,10 +106,8 @@
       <div class="chart-empty" id="chart-empty" hidden></div>
     </div>
     <div class="legend">
-      <span><i class="sw ob-bull"></i>Zone achat</span>
-      <span><i class="sw ob-bear"></i>Zone vente</span>
-      <span><i class="sw fvg"></i>FVG</span>
-      <span><i class="sw sweep"></i>Liquidité prise</span>
+      <span><i class="sw ob-bull"></i>Order block haussier</span>
+      <span><i class="sw ob-bear"></i>Order block baissier</span>
     </div>
     <p class="source" id="chart-source"></p>
   </section>
