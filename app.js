@@ -7,7 +7,16 @@
   const C = name => css.getPropertyValue(name).trim();
   const COL = { bull: C('--bull'), bear: C('--bear'), gold: C('--gold'), warn: C('--warn'), muted: C('--muted'), line: C('--line'), fg: C('--fg'), surface: C('--surface') };
 
-  const state = { sym: 'XAUUSD', tf: '5m', candles: null, source: '', smc: null, cot: {}, imported: {} };
+  // Unités analysées ensemble ; les grandes unités pèsent plus lourd dans la note globale du graphique.
+  const TFS = [
+    { tf: '4h', label: '4h', sec: 14400, weight: 3 },
+    { tf: '1h', label: '1h', sec: 3600, weight: 2 },
+    { tf: '30m', label: '30m', sec: 1800, weight: 1.5 },
+    { tf: '15m', label: '15m', sec: 900, weight: 1 },
+    { tf: '5m', label: '5m', sec: 300, weight: 1 },
+  ];
+  const state = { sym: 'XAUUSD', tf: '15m', frames: {}, source: '', cot: {}, imported: {}, fitted: '' };
+  const frame = () => state.frames[state.tf] || null;
   const fmt = new Intl.NumberFormat('fr-FR');
   const store = {
     get(k) { try { return localStorage.getItem('k2k.' + k); } catch (e) { return null; } },
@@ -36,7 +45,8 @@
     const ctx = zones.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, r.width, r.height);
-    if (!state.smc || !state.candles) return;
+    const f = frame();
+    if (!f) return;
     const ts = chart.timeScale();
     const plotW = r.width - candleSeries.priceScale().width();
     const box = (t, top, bottom, fill, stroke, dash) => {
@@ -49,8 +59,8 @@
       ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.setLineDash(dash || []);
       ctx.strokeRect(x + 0.5, y1 + 0.5, plotW - x - 1, y2 - y1);
     };
-    for (const f of state.smc.fvgs.filter(f => !f.filled).slice(-8)) box(f.time, f.top, f.bottom, 'rgba(217,180,90,0.13)', 'rgba(217,180,90,0.6)', [4, 3]);
-    for (const o of state.smc.orderBlocks.filter(o => o.status !== 'invalidé').slice(-6)) {
+    for (const g of f.smc.fvgs.filter(g => !g.filled).slice(-6)) box(g.time, g.top, g.bottom, 'rgba(217,180,90,0.13)', 'rgba(217,180,90,0.6)', [4, 3]);
+    for (const o of f.smc.orderBlocks.filter(o => o.status !== 'invalidé').slice(-4)) {
       box(o.time, o.top, o.bottom, o.dir > 0 ? 'rgba(47,191,143,0.16)' : 'rgba(239,93,107,0.16)', o.dir > 0 ? COL.bull : COL.bear);
     }
   }
@@ -59,36 +69,80 @@
 
   function renderChart() {
     const empty = $('chart-empty');
-    if (!state.candles) {
+    const f = frame();
+    $('chart-title').textContent = state.sym + ' · ' + state.tf;
+    if (!f) {
       candleSeries.setData([]); candleSeries.setMarkers([]);
       drawZones();
       return;
     }
     empty.hidden = true;
-    candleSeries.setData(state.candles.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
-    const s = state.smc, markers = [];
+    candleSeries.setData(f.candles.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
+    const s = f.smc, markers = [];
     const narrow = chartEl.clientWidth < 600;
-    for (const e of s.events.slice(narrow ? -5 : -12)) markers.push({ time: e.time, position: e.dir > 0 ? 'belowBar' : 'aboveBar', color: e.type === 'CHoCH' ? COL.gold : (e.dir > 0 ? COL.bull : COL.bear), shape: e.dir > 0 ? 'arrowUp' : 'arrowDown', text: e.type });
-    for (const w of s.sweeps.slice(narrow ? -3 : -8)) markers.push({ time: w.time, position: w.dir > 0 ? 'belowBar' : 'aboveBar', color: COL.warn, shape: 'circle', text: narrow ? '' : 'Liq' });
+    for (const e of s.events.slice(narrow ? -4 : -10)) markers.push({ time: e.time, position: e.dir > 0 ? 'belowBar' : 'aboveBar', color: e.type === 'CHoCH' ? COL.gold : (e.dir > 0 ? COL.bull : COL.bear), shape: e.dir > 0 ? 'arrowUp' : 'arrowDown', text: e.type });
+    for (const w of s.sweeps.slice(narrow ? -2 : -6)) markers.push({ time: w.time, position: w.dir > 0 ? 'belowBar' : 'aboveBar', color: COL.warn, shape: 'circle', text: '' });
     markers.sort((a, b) => a.time - b.time);
     candleSeries.setMarkers(markers);
-    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, state.candles.length - (narrow ? 90 : 160)), to: state.candles.length + 4 });
+    // On recadre seulement quand on change de marché ou d'unité, pas à chaque actualisation.
+    const key = state.sym + state.tf;
+    if (state.fitted !== key) {
+      state.fitted = key;
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, f.candles.length - (narrow ? 80 : 150)), to: f.candles.length + 4 });
+    }
     requestAnimationFrame(drawZones);
+  }
+
+  // ---------- Multi-unités ----------
+  function mtfScore() {
+    let sum = 0, w = 0;
+    for (const t of TFS) { const f = state.frames[t.tf]; if (f) { sum += f.smc.score * t.weight; w += t.weight; } }
+    return w ? Math.round(sum / w) : null;
+  }
+
+  function renderMtf() {
+    const box = $('mtf');
+    box.textContent = '';
+    for (const t of TFS) {
+      const f = state.frames[t.tf];
+      const row = document.createElement('button');
+      row.type = 'button'; row.className = 'mtf-row'; row.setAttribute('role', 'tab');
+      row.setAttribute('aria-selected', String(t.tf === state.tf));
+      row.innerHTML = '<span class="mtf-tf"></span><span class="mtf-trend"></span><span class="mtf-last"></span><span class="mtf-score"></span>';
+      row.querySelector('.mtf-tf').textContent = t.label;
+      const tr = row.querySelector('.mtf-trend'), last = row.querySelector('.mtf-last'), sc = row.querySelector('.mtf-score');
+      if (!f) {
+        tr.textContent = '—'; tr.className = 'mtf-trend flat';
+        last.textContent = state.loading ? 'Chargement…' : 'Pas de données';
+      } else {
+        const v = f.smc.score;
+        tr.textContent = v >= 15 ? '▲ Haussier' : v <= -15 ? '▼ Baissier' : '■ Neutre';
+        tr.className = 'mtf-trend ' + (v >= 15 ? 'bull' : v <= -15 ? 'bear' : 'flat');
+        const ev = f.smc.events[f.smc.events.length - 1];
+        last.textContent = ev ? ev.type + (ev.dir > 0 ? ' ↑ ' : ' ↓ ') + price(ev.price) : 'Aucune cassure';
+        sc.textContent = (v > 0 ? '+' : '') + v;
+        sc.className = 'mtf-score ' + (v >= 15 ? 'bull' : v <= -15 ? 'bear' : '');
+      }
+      row.addEventListener('click', () => selectTf(t.tf));
+      box.appendChild(row);
+    }
   }
 
   // ---------- Empreintes ----------
   function renderEvents() {
     const list = $('events');
     list.textContent = '';
-    if (!state.smc) { list.innerHTML = '<li><span class="dot"></span><div class="why">Pas encore de bougies pour ce marché.</div><span></span></li>'; return; }
-    const s = state.smc, items = [];
+    $('events-tf').textContent = state.tf;
+    const fr = frame();
+    if (!fr) { list.innerHTML = '<li><span class="dot"></span><div class="why">Pas encore de bougies pour ce marché.</div><span></span></li>'; return; }
+    const s = fr.smc, items = [];
     for (const e of s.events) items.push({ t: e.time, dir: e.dir, what: e.type + (e.dir > 0 ? ' haussier' : ' baissier'), why: (e.type === 'CHoCH' ? 'La tendance change de camp : clôture ' : 'La tendance continue : clôture ') + (e.dir > 0 ? 'au-dessus de ' : 'sous ') + price(e.price) });
     for (const o of s.orderBlocks) if (o.status !== 'invalidé') items.push({ t: o.time, dir: o.dir, what: 'Order block ' + (o.dir > 0 ? 'acheteur' : 'vendeur') + ' (' + o.status + ')', why: 'Zone ' + price(o.bottom) + ' – ' + price(o.top) + ' : dernière bougie opposée avant la cassure' });
     for (const w of s.sweeps) items.push({ t: w.time, dir: w.dir, what: 'Chasse de liquidité', why: (w.dir > 0 ? 'Mèche sous ' : 'Mèche au-dessus de ') + price(w.level) + ' puis retour : les stops ont été pris' });
     for (const v of s.volume) items.push({ t: v.time, dir: v.dir, what: 'Volume x' + v.ratio.toFixed(1), why: 'Bougie ' + (v.dir > 0 ? 'acheteuse' : 'vendeuse') + ' avec un volume anormal' });
     for (const f of s.fvgs.filter(f => !f.filled).slice(-2)) items.push({ t: f.time, dir: f.dir, what: 'FVG ' + (f.dir > 0 ? 'haussier' : 'baissier') + ' non comblé', why: 'Déséquilibre ' + price(f.bottom) + ' – ' + price(f.top) + ' : le prix revient souvent le combler' });
     items.sort((a, b) => b.t - a.t);
-    for (const it of items.slice(0, 10)) {
+    for (const it of items.slice(0, 6)) {
       const li = document.createElement('li');
       li.className = it.dir > 0 ? 'bull' : 'bear';
       li.innerHTML = '<span class="dot"></span><div><div class="what"></div><div class="why"></div></div><time></time>';
@@ -176,16 +230,15 @@
   function renderVerdict() {
     const cot = state.cot[state.sym];
     const cb = cot && cot.summary ? cot.summary.bias : null;
-    const sb = state.smc ? state.smc.score : null;
+    const sb = mtfScore();
     setGauge('g-cot', cb); setGauge('g-smc', sb);
-    $('g-smc-sub').textContent = state.candles ? 'SMC ' + (state.source.startsWith('Fichier') ? 'fichier' : state.tf) : 'SMC';
     const pill = $('v-pill');
     let title, text, cls;
     if (cb == null && sb == null) {
       title = 'En attente de données'; cls = ''; text = 'Les positions des institutions et les bougies sont en cours de chargement.';
     } else if (cb != null && sb != null && Math.sign(cb) !== Math.sign(sb) && Math.abs(cb) >= 15 && Math.abs(sb) >= 15) {
       title = 'Désaccord : prudence'; cls = 'warn';
-      text = 'Les institutions sont ' + (cb > 0 ? 'acheteuses' : 'vendeuses') + ' sur le fond, mais le graphique montre une pression ' + (sb > 0 ? 'acheteuse' : 'vendeuse') + '. Mieux vaut attendre que le graphique rejoigne le camp des institutions.';
+      text = 'Les institutions sont ' + (cb > 0 ? 'acheteuses' : 'vendeuses') + ' sur le fond, mais le graphique montre une pression ' + (sb > 0 ? 'acheteuse' : 'vendeuse') + '. ' + alignText() + ' Mieux vaut attendre que le graphique rejoigne le camp des institutions.';
     } else {
       const v = Math.round(cb != null && sb != null ? (cb + sb) / 2 : (cb != null ? cb : sb));
       const [t, c] = label(v); title = t; cls = c;
@@ -194,7 +247,7 @@
         const f = cot.summary.groups.find(g => g.id === 'funds');
         parts.push('Les ' + f.name.split(' (')[0].toLowerCase() + ' sont ' + (f.month >= 0 ? 'en train d\'acheter' : 'en train de vendre') + ' depuis 4 semaines (' + (f.month > 0 ? '+' : '') + fmt.format(Math.round(f.month)) + ' contrats nets).');
       } else parts.push('Le rapport COT n\'est pas chargé.');
-      if (state.smc) parts.push(state.smc.reasons[0] ? state.smc.reasons.join('. ') + '.' : 'Pas d\'empreinte nette sur le graphique.');
+      if (sb != null) parts.push(alignText());
       else parts.push('Importe des bougies pour ajouter l\'analyse du graphique.');
       text = parts.join(' ');
     }
@@ -204,42 +257,86 @@
     pill.className = 'pill ' + cls;
   }
 
+  // Résumé de l'alignement : combien d'unités vont dans le même sens.
+  function alignText() {
+    const up = [], down = [];
+    for (const t of TFS) { const f = state.frames[t.tf]; if (!f) continue; if (f.smc.score >= 15) up.push(t.label); else if (f.smc.score <= -15) down.push(t.label); }
+    const n = TFS.filter(t => state.frames[t.tf]).length;
+    if (up.length === n) return 'Toutes les unités sont haussières.';
+    if (down.length === n) return 'Toutes les unités sont baissières.';
+    const parts = [];
+    if (up.length) parts.push('haussier en ' + up.join(', '));
+    if (down.length) parts.push('baissier en ' + down.join(', '));
+    return parts.length ? 'Graphique ' + parts.join(' ; ') + '.' : 'Graphique sans direction claire.';
+  }
+
   // ---------- Chargement ----------
   let loadSeq = 0;
-  async function loadCandles() {
+  async function loadCandles(silent) {
     const seq = ++loadSeq;
     const sym = state.sym;
-    state.candles = null; state.smc = null;
     const empty = $('chart-empty');
-    $('chart-title').textContent = sym;
+    if (!silent) { state.frames = {}; state.loading = true; renderAll(); }
     if (state.imported[sym]) {
-      setCandles(state.imported[sym].candles, state.imported[sym].source);
-      return;
+      state.frames = framesFromFile(state.imported[sym].candles);
+      state.loading = false;
+      $('chart-source').textContent = state.imported[sym].source;
+      if (!state.frames[state.tf]) state.tf = (TFS.slice().reverse().find(t => state.frames[t.tf]) || TFS[4]).tf;
+      renderAll(); return;
     }
     if (!Prices.LIVE[sym]) {
+      state.loading = false;
       empty.hidden = false;
-      empty.textContent = 'Pas de flux de prix gratuit pour le Nasdaq. Exporte tes bougies depuis MT5 ou TradingView, puis touche « Importer ».';
+      empty.textContent = 'Pas de flux de prix gratuit pour le Nasdaq. Exporte tes bougies 5 min depuis MT5 ou TradingView, puis touche « Importer un fichier ».';
       $('chart-source').textContent = '';
       renderAll(); return;
     }
-    empty.hidden = false; empty.textContent = 'Chargement des bougies…';
-    try {
-      const c = await Prices.fetchLive(sym, state.tf, 500);
-      if (seq !== loadSeq) return;
-      setCandles(c, 'Binance ' + Prices.LIVE[sym] + (sym === 'XAUUSD' ? ' (jeton adossé à l\'or, suit le prix de l\'once)' : '') + ' · ' + state.tf + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
-    } catch (e) {
-      if (seq !== loadSeq) return;
+    if (!silent) { empty.hidden = false; empty.textContent = 'Chargement des bougies…'; }
+    const results = await Promise.allSettled(TFS.map(t => Prices.fetchLive(sym, t.tf, 500)));
+    if (seq !== loadSeq) return;
+    state.loading = false;
+    const frames = {};
+    let err = null;
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') { const smc = SMC.analyze(r.value); if (smc) frames[TFS[i].tf] = { candles: r.value, smc }; }
+      else err = r.reason;
+    });
+    if (!Object.keys(frames).length) {
       empty.hidden = false;
-      empty.textContent = 'Impossible de charger les prix (' + e.message + '). Vérifie ta connexion, ou importe un fichier MT5 / TradingView.';
-      renderAll();
+      empty.textContent = 'Impossible de charger les prix (' + (err ? err.message : 'aucune donnée') + '). Vérifie ta connexion, ou importe un fichier MT5 / TradingView.';
+      renderAll(); return;
     }
+    state.frames = frames;
+    $('chart-source').textContent = 'Binance ' + Prices.LIVE[sym] + (sym === 'XAUUSD' ? ' (jeton adossé à l\'or)' : '') + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    renderAll();
   }
 
-  function setCandles(c, source) {
-    state.candles = c; state.source = source;
-    state.smc = SMC.analyze(c);
-    $('chart-source').textContent = source;
-    renderAll();
+  // Un fichier importé (5 min par exemple) sert à reconstruire les unités plus grandes.
+  function framesFromFile(c) {
+    const diffs = [];
+    for (let i = 1; i < Math.min(c.length, 200); i++) diffs.push(c[i].time - c[i - 1].time);
+    diffs.sort((a, b) => a - b);
+    const base = diffs[Math.floor(diffs.length / 2)] || 300;
+    const out = {};
+    for (const t of TFS) {
+      if (t.sec < base) continue;
+      const bars = t.sec === base ? c : resample(c, t.sec);
+      const smc = SMC.analyze(bars);
+      if (smc) out[t.tf] = { candles: bars, smc };
+    }
+    return out;
+  }
+
+  function resample(c, sec) {
+    const out = [];
+    for (const k of c) {
+      const t = Math.floor(k.time / sec) * sec;
+      const last = out[out.length - 1];
+      if (last && last.time === t) {
+        last.high = Math.max(last.high, k.high); last.low = Math.min(last.low, k.low); last.close = k.close; last.volume += k.volume;
+      } else out.push({ time: t, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume });
+    }
+    return out;
   }
 
   async function loadCot(sym) {
@@ -249,19 +346,24 @@
     if (sym === state.sym) { renderCot(); renderVerdict(); }
   }
 
-  function renderAll() { renderChart(); renderEvents(); renderCot(); renderVerdict(); }
+  function renderAll() { renderMtf(); renderChart(); renderEvents(); renderCot(); renderVerdict(); }
 
   // ---------- Interactions ----------
   function selectMarket(sym) {
     state.sym = sym;
     store.set('sym', sym);
     document.querySelectorAll('.markets button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.sym === sym)));
+    state.fitted = '';
     renderCot();
     loadCandles();
     loadCot(sym);
   }
+  function selectTf(tf) {
+    state.tf = tf;
+    store.set('tf', tf);
+    renderMtf(); renderChart(); renderEvents();
+  }
   document.querySelectorAll('.markets button').forEach(b => b.addEventListener('click', () => selectMarket(b.dataset.sym)));
-  $('tf').addEventListener('change', e => { state.tf = e.target.value; store.set('tf', state.tf); delete state.imported[state.sym]; loadCandles(); });
   $('refresh').addEventListener('click', () => { delete state.cot[state.sym]; delete state.imported[state.sym]; loadCandles(); loadCot(state.sym); });
   $('csv').addEventListener('change', async e => {
     const file = e.target.files[0];
@@ -270,7 +372,8 @@
     try {
       const c = Prices.parseCsv(await file.text());
       state.imported[state.sym] = { candles: c, source: 'Fichier ' + file.name + ' · ' + c.length + ' bougies' };
-      setCandles(c, state.imported[state.sym].source);
+      state.fitted = '';
+      loadCandles();
     } catch (err) {
       const empty = $('chart-empty');
       empty.hidden = false;
@@ -279,10 +382,10 @@
   });
 
   // Actualisation automatique des prix en direct toutes les minutes.
-  setInterval(() => { if (!document.hidden && Prices.LIVE[state.sym] && !state.imported[state.sym]) loadCandles(); }, 60000);
+  setInterval(() => { if (!document.hidden && Prices.LIVE[state.sym] && !state.imported[state.sym]) loadCandles(true); }, 60000);
 
   const savedTf = store.get('tf');
-  if (savedTf) { state.tf = savedTf; $('tf').value = savedTf; }
+  if (savedTf && TFS.some(t => t.tf === savedTf)) state.tf = savedTf;
   selectMarket(store.get('sym') || 'XAUUSD');
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

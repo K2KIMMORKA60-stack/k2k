@@ -116,3 +116,25 @@ table.cot { width: 100%; border-collapse: collapse; font-size: 13px; }
   .markets button { padding: 7px 9px; }
 }
 @media (prefers-reduced-motion: reduce) { .g-bar { transition: none; } }
+
+/* Tableau multi-unités : une ligne par unité, la ligne active est soulignée en or. */
+.mtf { display: flex; flex-direction: column; }
+.mtf-row {
+  display: grid; grid-template-columns: 44px 96px 1fr 40px; align-items: center; gap: 10px;
+  width: 100%; padding: 10px 6px; background: none; border: 0; border-top: 1px solid var(--line);
+  color: var(--fg); font: inherit; text-align: left; cursor: pointer; border-radius: 6px;
+}
+.mtf-row:first-child { border-top: 0; }
+.mtf-row[aria-selected="true"] { background: color-mix(in srgb, var(--gold) 12%, transparent); box-shadow: inset 3px 0 0 var(--gold); }
+.mtf-row:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.mtf-tf { font: 600 14px var(--mono); }
+.mtf-trend { font-size: 13px; font-weight: 600; }
+.mtf-trend.bull { color: var(--bull); } .mtf-trend.bear { color: var(--bear); } .mtf-trend.flat { color: var(--muted); }
+.mtf-last { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mtf-score { font: 500 13px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.mtf-score.bull { color: var(--bull); } .mtf-score.bear { color: var(--bear); }
+details.help-panel summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+details.help-panel summary::-webkit-details-marker { display: none; }
+details.help-panel summary::after { content: '+'; font: 500 18px var(--mono); color: var(--muted); }
+details.help-panel[open] summary::after { content: '−'; }
+main > .disclaimer { text-align: center; margin-inline: auto; }

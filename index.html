@@ -33,7 +33,7 @@
       <h1 id="v-title">Analyse en cours…</h1>
       <span class="pill" id="v-pill">—</span>
     </div>
-    <p id="v-text" class="v-text">K2K croise les positions des institutions (rapport COT) et les empreintes sur le graphique.</p>
+    <p id="v-text" class="v-text">K2K croise les positions des institutions (rapport COT) et les empreintes SMC sur 5 unités de temps.</p>
     <div class="gauges">
       <div class="gauge">
         <div class="g-label"><span>Institutions</span><span class="g-sub">COT hebdo</span></div>
@@ -41,48 +41,47 @@
         <div class="g-val" id="g-cot-val">—</div>
       </div>
       <div class="gauge">
-        <div class="g-label"><span>Graphique</span><span class="g-sub" id="g-smc-sub">SMC</span></div>
+        <div class="g-label"><span>Graphique</span><span class="g-sub">4h · 1h · 30m · 15m · 5m</span></div>
         <div class="g-track"><div class="g-mid"></div><div class="g-bar" id="g-smc"></div></div>
         <div class="g-val" id="g-smc-val">—</div>
       </div>
     </div>
-    <p class="disclaimer">Aide à la décision, pas un conseil financier. Les banques ne publient pas leurs ordres : K2K lit des traces, qui peuvent se tromper.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Unités de temps</h2>
+      <span class="source" id="mtf-note">Touche une ligne pour voir son graphique</span>
+    </div>
+    <div class="mtf" id="mtf" role="tablist" aria-label="Unité de temps"></div>
   </section>
 
   <section class="panel chart-panel">
     <div class="panel-head">
       <h2 id="chart-title">Graphique</h2>
       <div class="controls">
-        <label class="sr" for="tf">Unité de temps</label>
-        <select id="tf">
-          <option value="5m">5 min</option>
-          <option value="15m">15 min</option>
-          <option value="1h">1 h</option>
-          <option value="4h">4 h</option>
-          <option value="1d">1 j</option>
-        </select>
         <button class="btn" id="refresh" type="button">Actualiser</button>
-        <label class="btn" for="csv">Importer MT5 / TradingView</label>
+        <label class="btn" for="csv">Importer un fichier</label>
         <input type="file" id="csv" accept=".csv,.txt,text/csv,text/plain" hidden>
       </div>
     </div>
-    <p class="source" id="chart-source"></p>
     <div class="chart-wrap">
       <div id="chart"></div>
       <canvas id="zones" aria-hidden="true"></canvas>
       <div class="chart-empty" id="chart-empty" hidden></div>
     </div>
     <div class="legend">
-      <span><i class="sw ob-bull"></i>Order block acheteur</span>
-      <span><i class="sw ob-bear"></i>Order block vendeur</span>
-      <span><i class="sw fvg"></i>FVG non comblé</span>
-      <span><i class="sw sweep"></i>Chasse de liquidité</span>
+      <span><i class="sw ob-bull"></i>OB acheteur</span>
+      <span><i class="sw ob-bear"></i>OB vendeur</span>
+      <span><i class="sw fvg"></i>FVG</span>
+      <span><i class="sw sweep"></i>Liquidité prise</span>
     </div>
+    <p class="source" id="chart-source"></p>
   </section>
 
   <div class="grid">
     <section class="panel">
-      <div class="panel-head"><h2>Empreintes récentes</h2></div>
+      <div class="panel-head"><h2>Empreintes récentes</h2><span class="source" id="events-tf"></span></div>
       <ol class="events" id="events"></ol>
     </section>
 
@@ -93,24 +92,26 @@
       </div>
       <div class="table-wrap">
         <table class="cot">
-          <thead><tr><th>Groupe</th><th>Net</th><th>1 sem.</th><th>4 sem.</th><th>Indice 3 ans</th></tr></thead>
+          <thead><tr><th>Groupe</th><th>Net</th><th>1 sem.</th><th>4 sem.</th><th>Indice</th></tr></thead>
           <tbody id="cot-body"></tbody>
         </table>
       </div>
       <div id="cot-chart" class="cot-chart"></div>
-      <p class="help">Net = contrats achetés moins contrats vendus. L'indice compare la position actuelle aux extrêmes des 3 dernières années : près de 100, ce groupe n'a presque jamais été aussi acheteur ; près de 0, aussi vendeur.</p>
     </section>
   </div>
 
-  <section class="panel help-panel">
-    <h2>Comment lire K2K</h2>
+  <details class="panel help-panel">
+    <summary><h2>Comment lire K2K</h2></summary>
     <ul>
-      <li><b>Institutions</b> : chaque vendredi, la CFTC publie les positions des banques et des fonds sur les contrats à terme (données du mardi). C'est le biais de fond, pour plusieurs semaines.</li>
-      <li><b>Graphique</b> : K2K repère les cassures de structure (BOS, CHoCH), les order blocks, les FVG, les chasses de liquidité et les volumes anormaux. C'est le timing.</li>
-      <li><b>Quand les deux sont d'accord</b>, le signal est plus solide. Quand ils divergent, la prudence est de mise.</li>
-      <li><b>NAS100</b> n'a pas de flux de prix gratuit : exporte tes bougies depuis MT5 (clic droit sur le graphique, Bougies, Exporter) ou TradingView (menu, Exporter les données du graphique), puis importe le fichier.</li>
+      <li><b>Institutions</b> : chaque vendredi, la CFTC publie les positions des banques et des fonds sur les contrats à terme (données du mardi). C'est le biais de fond. L'indice compare la position actuelle aux extrêmes des 3 dernières années (100 = jamais aussi acheteur, 0 = jamais aussi vendeur).</li>
+      <li><b>Unités de temps</b> : K2K analyse le 4h, le 1h, le 30 min, le 15 min et le 5 min en même temps. Les grandes unités pèsent plus lourd dans la note du graphique.</li>
+      <li><b>Graphique</b> : cassures de structure (BOS, CHoCH), order blocks, FVG, chasses de liquidité et volumes anormaux.</li>
+      <li><b>Quand tout est aligné</b>, le signal est plus solide. Quand les unités se contredisent, la prudence est de mise.</li>
+      <li><b>NAS100</b> n'a pas de flux de prix gratuit : exporte tes bougies 5 min depuis MT5 ou TradingView, puis touche « Importer un fichier ». K2K en déduit les autres unités.</li>
     </ul>
-  </section>
+  </details>
+
+  <p class="disclaimer">Aide à la décision, pas un conseil financier. Les banques ne publient pas leurs ordres : K2K lit des traces, qui peuvent se tromper.</p>
 </main>
 
 <script src="vendor/lightweight-charts.standalone.production.js"></script>
