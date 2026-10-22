@@ -15,6 +15,8 @@
     { tf: '15m', label: '15m', sec: 900, weight: 1 },
     { tf: '5m', label: '5m', sec: 300, weight: 1 },
   ];
+  const PAPER = { bg: C('--paper'), grid: C('--paper-line'), ink: C('--paper-ink'), buy: C('--buy'), sell: C('--sell') };
+  const CANDLES = { upColor: '#1f9d74', downColor: '#e0444f', borderUpColor: '#1f9d74', borderDownColor: '#e0444f', wickUpColor: '#1f9d74', wickDownColor: '#e0444f' };
   const state = { sym: 'XAUUSD', tf: '15m', frames: {}, source: '', cot: {}, imported: {}, fitted: '' };
   const frame = () => state.frames[state.tf] || null;
   const fmt = new Intl.NumberFormat('fr-FR');
@@ -28,15 +30,13 @@
   const chart = LightweightCharts.createChart(chartEl, {
     autoSize: true,
     localization: { locale: 'fr-FR' },
-    layout: { background: { color: COL.surface }, textColor: COL.muted, fontFamily: 'IBM Plex Mono, monospace' },
-    grid: { vertLines: { color: 'rgba(38,49,71,0.5)' }, horzLines: { color: 'rgba(38,49,71,0.5)' } },
-    rightPriceScale: { borderColor: COL.line },
-    timeScale: { borderColor: COL.line, timeVisible: true, secondsVisible: false },
+    layout: { background: { color: PAPER.bg }, textColor: PAPER.ink, fontFamily: 'IBM Plex Mono, monospace' },
+    grid: { vertLines: { color: PAPER.grid }, horzLines: { color: PAPER.grid } },
+    rightPriceScale: { borderColor: PAPER.grid },
+    timeScale: { borderColor: PAPER.grid, timeVisible: true, secondsVisible: false },
     crosshair: { mode: 0 },
   });
-  const candleSeries = chart.addCandlestickSeries({
-    upColor: COL.bull, downColor: COL.bear, borderUpColor: COL.bull, borderDownColor: COL.bear, wickUpColor: COL.bull, wickDownColor: COL.bear,
-  });
+  const candleSeries = chart.addCandlestickSeries(CANDLES);
 
   function drawZones() {
     const r = chartEl.getBoundingClientRect();
@@ -59,9 +59,9 @@
       ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.setLineDash(dash || []);
       ctx.strokeRect(x + 0.5, y1 + 0.5, plotW - x - 1, y2 - y1);
     };
-    for (const g of f.smc.fvgs.filter(g => !g.filled).slice(-6)) box(g.time, g.top, g.bottom, 'rgba(217,180,90,0.13)', 'rgba(217,180,90,0.6)', [4, 3]);
+    for (const g of f.smc.fvgs.filter(g => !g.filled).slice(-6)) box(g.time, g.top, g.bottom, 'rgba(196,150,40,0.10)', 'rgba(196,150,40,0.7)', [4, 3]);
     for (const o of f.smc.orderBlocks.filter(o => o.status !== 'invalidé').slice(-4)) {
-      box(o.time, o.top, o.bottom, o.dir > 0 ? 'rgba(47,191,143,0.16)' : 'rgba(239,93,107,0.16)', o.dir > 0 ? COL.bull : COL.bear);
+      box(o.time, o.top, o.bottom, o.dir > 0 ? 'rgba(21,154,140,0.14)' : 'rgba(224,68,79,0.14)', o.dir > 0 ? PAPER.buy : PAPER.sell);
     }
   }
   chart.timeScale().subscribeVisibleTimeRangeChange(() => requestAnimationFrame(drawZones));
@@ -125,6 +125,74 @@
       }
       row.addEventListener('click', () => selectTf(t.tf));
       box.appendChild(row);
+    }
+  }
+
+
+  // ---------- Scanner d'order blocks ----------
+  // Zones encore valides (non cassées), les plus proches du prix d'abord.
+  function liveZones(f) {
+    const last = f.candles[f.candles.length - 1].close;
+    return f.smc.orderBlocks.filter(o => o.status !== 'invalidé')
+      .map(o => ({ ...o, level: o.dir > 0 ? o.top : o.bottom, dist: Math.abs((o.dir > 0 ? o.top : o.bottom) - last) / last }))
+      .sort((a, b) => a.dist - b.dist).slice(0, 5);
+  }
+
+  const scanCharts = [];
+  function renderScanner() {
+    const grid = $('scan-grid');
+    while (scanCharts.length) scanCharts.pop().remove();
+    grid.textContent = '';
+    const near = [];
+    for (const t of TFS) {
+      const f = state.frames[t.tf];
+      const card = document.createElement('button');
+      card.type = 'button'; card.className = 'scan-card';
+      card.setAttribute('aria-pressed', String(t.tf === state.tf));
+      card.innerHTML = '<div class="scan-head"><b></b><span></span></div><div class="scan-chart"></div>';
+      card.querySelector('b').textContent = state.sym + ' · ' + t.label;
+      grid.appendChild(card);
+      card.addEventListener('click', () => { selectTf(t.tf); $('chart').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+      if (!f) { card.querySelector('span').textContent = state.loading ? 'Chargement…' : 'Pas de données'; continue; }
+      const zones = liveZones(f);
+      const buys = zones.filter(z => z.dir > 0).length;
+      card.querySelector('span').textContent = buys + ' achat · ' + (zones.length - buys) + ' vente';
+      const ch = LightweightCharts.createChart(card.querySelector('.scan-chart'), {
+        autoSize: true, localization: { locale: 'fr-FR' },
+        layout: { background: { color: PAPER.bg }, textColor: PAPER.ink, fontFamily: 'IBM Plex Mono, monospace', fontSize: 10 },
+        grid: { vertLines: { visible: false }, horzLines: { color: PAPER.grid } },
+        rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true },
+        handleScroll: false, handleScale: false, crosshair: { mode: 2 },
+      });
+      scanCharts.push(ch);
+      const se = ch.addCandlestickSeries(CANDLES);
+      se.setData(f.candles.slice(-120).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
+      for (const z of zones) {
+        se.createPriceLine({
+          price: z.level, color: z.dir > 0 ? PAPER.buy : PAPER.sell, lineWidth: 1,
+          lineStyle: z.status === 'frais' ? LightweightCharts.LineStyle.Solid : LightweightCharts.LineStyle.Dotted,
+          axisLabelVisible: false, title: z.dir > 0 ? 'ZONE ACHAT' : 'ZONE VENTE',
+        });
+        near.push({ tf: t.label, z, last: f.candles[f.candles.length - 1].close });
+      }
+      ch.timeScale().fitContent();
+    }
+    const body = $('near-body');
+    body.textContent = '';
+    near.sort((a, b) => a.z.dist - b.z.dist);
+    if (!near.length) { body.innerHTML = '<tr><td colspan="4">Aucune zone valide pour le moment.</td></tr>'; return; }
+    for (const n of near.slice(0, 8)) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td class="num"></td><td><span class="tag"></span></td><td class="num"></td><td class="num"></td>';
+      const td = tr.querySelectorAll('td');
+      td[0].textContent = n.tf;
+      const tag = td[1].querySelector('.tag');
+      tag.textContent = (n.z.dir > 0 ? 'ACHAT' : 'VENTE') + (n.z.status === 'frais' ? '' : ' ·touchée');
+      tag.className = 'tag ' + (n.z.dir > 0 ? 'buy' : 'sell');
+      td[2].textContent = price(n.z.level);
+      const inside = n.last <= n.z.top && n.last >= n.z.bottom;
+      td[3].textContent = inside ? 'dans la zone' : (n.z.dist * 100).toFixed(2) + ' %';
+      body.appendChild(tr);
     }
   }
 
@@ -346,7 +414,7 @@
     if (sym === state.sym) { renderCot(); renderVerdict(); }
   }
 
-  function renderAll() { renderMtf(); renderChart(); renderEvents(); renderCot(); renderVerdict(); }
+  function renderAll() { renderMtf(); renderScanner(); renderChart(); renderEvents(); renderCot(); renderVerdict(); }
 
   // ---------- Interactions ----------
   function selectMarket(sym) {
@@ -362,6 +430,7 @@
     state.tf = tf;
     store.set('tf', tf);
     renderMtf(); renderChart(); renderEvents();
+    document.querySelectorAll('.scan-card').forEach((c, i) => c.setAttribute('aria-pressed', String(TFS[i].tf === tf)));
   }
   document.querySelectorAll('.markets button').forEach(b => b.addEventListener('click', () => selectMarket(b.dataset.sym)));
   $('refresh').addEventListener('click', () => { delete state.cot[state.sym]; delete state.imported[state.sym]; loadCandles(); loadCot(state.sym); });

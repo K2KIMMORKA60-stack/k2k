@@ -138,3 +138,20 @@ details.help-panel summary::-webkit-details-marker { display: none; }
 details.help-panel summary::after { content: '+'; font: 500 18px var(--mono); color: var(--muted); }
 details.help-panel[open] summary::after { content: '−'; }
 main > .disclaimer { text-align: center; margin-inline: auto; }
+
+/* Graphiques blancs façon scanner : le papier ressort sur le fond nuit. */
+:root { --paper: #ffffff; --paper-line: #eef1f5; --paper-ink: #5b6577; --buy: #159a8c; --sell: #e0444f; }
+.chart-wrap { background: var(--paper); border-radius: 10px; overflow: hidden; }
+.chart-empty { background: var(--paper); color: var(--paper-ink); }
+.scan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.scan-card { background: var(--paper); border-radius: 10px; overflow: hidden; border: 2px solid transparent; cursor: pointer; padding: 0; text-align: left; font: inherit; color: var(--paper-ink); }
+.scan-card[aria-pressed="true"] { border-color: var(--gold); }
+.scan-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.scan-head { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 10px 0; }
+.scan-head b { font: 700 14px var(--mono); color: #1d2433; }
+.scan-head span { font: 400 11px var(--mono); }
+.scan-chart { height: 220px; position: relative; }
+.near td .tag { font: 600 11px var(--mono); letter-spacing: 0.04em; }
+.tag.buy { color: var(--buy); } .tag.sell { color: var(--sell); }
+.ob-bull { background: color-mix(in srgb, var(--buy) 30%, transparent); border-color: var(--buy); }
+.ob-bear { background: color-mix(in srgb, var(--sell) 30%, transparent); border-color: var(--sell); }

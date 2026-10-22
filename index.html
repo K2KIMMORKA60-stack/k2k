@@ -56,6 +56,20 @@
     <div class="mtf" id="mtf" role="tablist" aria-label="Unité de temps"></div>
   </section>
 
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Scanner d'order blocks</h2>
+      <span class="source">Touche un graphique pour l'agrandir</span>
+    </div>
+    <div class="scan-grid" id="scan-grid"></div>
+    <div class="table-wrap">
+      <table class="cot near">
+        <thead><tr><th>Unité</th><th>Zone</th><th>Prix</th><th>Distance</th></tr></thead>
+        <tbody id="near-body"></tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="panel chart-panel">
     <div class="panel-head">
       <h2 id="chart-title">Graphique</h2>
@@ -71,8 +85,8 @@
       <div class="chart-empty" id="chart-empty" hidden></div>
     </div>
     <div class="legend">
-      <span><i class="sw ob-bull"></i>OB acheteur</span>
-      <span><i class="sw ob-bear"></i>OB vendeur</span>
+      <span><i class="sw ob-bull"></i>Zone achat</span>
+      <span><i class="sw ob-bear"></i>Zone vente</span>
       <span><i class="sw fvg"></i>FVG</span>
       <span><i class="sw sweep"></i>Liquidité prise</span>
     </div>
