@@ -1,5 +1,5 @@
 // K2K : l'appli s'ouvre même hors connexion ; les données de marché passent toujours par le réseau.
-const CACHE = 'k2k-v6';
+const CACHE = 'k2k-v7';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'smc.js', 'cot.js', 'data.js', 'manifest.webmanifest', 'icons/favicon-32.png', 'icons/icon-192.png', 'vendor/lightweight-charts.standalone.production.js'];
 
 self.addEventListener('install', e => {
@@ -12,6 +12,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
   if (/binance|cftc\.gov/.test(url.hostname)) return; // données en direct : jamais de cache
+  if (/\.(png|webmanifest)$/.test(url.pathname)) return; // icônes et manifeste : toujours servis par le réseau, pour l'écran d'accueil
   // Réseau d'abord, cache en secours : la dernière version est toujours servie quand on est en ligne.
   e.respondWith(
     fetch(e.request).then(res => {
