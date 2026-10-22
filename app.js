@@ -457,5 +457,13 @@
   if (savedTf && TFS.some(t => t.tf === savedTf)) state.tf = savedTf;
   selectMarket(store.get('sym') || 'XAUUSD');
 
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Sur iPhone, le service worker peut gêner Safari quand il va chercher l'icône de l'écran d'accueil :
+  // on le retire et on vide son cache. Ailleurs, il sert à ouvrir l'appli hors connexion.
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    if (isIOS) {
+      navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+      if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {});
+    } else navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 })();
