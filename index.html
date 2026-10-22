@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>K2K</title>
+<meta name="description" content="K2K suit les traces des banques et des fonds sur l'or, le Nasdaq et le Bitcoin.">
+<meta name="theme-color" content="#050D18">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="K2K">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">K2K</span><span class="tag">Smart money</span></div>
+  <nav class="markets" role="tablist" aria-label="Marché">
+    <button role="tab" id="tab-XAUUSD" data-sym="XAUUSD" aria-selected="true">XAUUSD</button>
+    <button role="tab" id="tab-NAS100" data-sym="NAS100" aria-selected="false">NAS100</button>
+    <button role="tab" id="tab-BTC" data-sym="BTC" aria-selected="false">BTC</button>
+  </nav>
+</header>
+
+<main>
+  <section class="verdict" aria-live="polite">
+    <div class="verdict-head">
+      <h1 id="v-title">Analyse en cours…</h1>
+      <span class="pill" id="v-pill">—</span>
+    </div>
+    <p id="v-text" class="v-text">K2K croise les positions des institutions (rapport COT) et les empreintes sur le graphique.</p>
+    <div class="gauges">
+      <div class="gauge">
+        <div class="g-label"><span>Institutions</span><span class="g-sub">COT hebdo</span></div>
+        <div class="g-track"><div class="g-mid"></div><div class="g-bar" id="g-cot"></div></div>
+        <div class="g-val" id="g-cot-val">—</div>
+      </div>
+      <div class="gauge">
+        <div class="g-label"><span>Graphique</span><span class="g-sub" id="g-smc-sub">SMC</span></div>
+        <div class="g-track"><div class="g-mid"></div><div class="g-bar" id="g-smc"></div></div>
+        <div class="g-val" id="g-smc-val">—</div>
+      </div>
+    </div>
+    <p class="disclaimer">Aide à la décision, pas un conseil financier. Les banques ne publient pas leurs ordres : K2K lit des traces, qui peuvent se tromper.</p>
+  </section>
+
+  <section class="panel chart-panel">
+    <div class="panel-head">
+      <h2 id="chart-title">Graphique</h2>
+      <div class="controls">
+        <label class="sr" for="tf">Unité de temps</label>
+        <select id="tf">
+          <option value="5m">5 min</option>
+          <option value="15m">15 min</option>
+          <option value="1h">1 h</option>
+          <option value="4h">4 h</option>
+          <option value="1d">1 j</option>
+        </select>
+        <button class="btn" id="refresh" type="button">Actualiser</button>
+        <label class="btn" for="csv">Importer MT5 / TradingView</label>
+        <input type="file" id="csv" accept=".csv,.txt,text/csv,text/plain" hidden>
+      </div>
+    </div>
+    <p class="source" id="chart-source"></p>
+    <div class="chart-wrap">
+      <div id="chart"></div>
+      <canvas id="zones" aria-hidden="true"></canvas>
+      <div class="chart-empty" id="chart-empty" hidden></div>
+    </div>
+    <div class="legend">
+      <span><i class="sw ob-bull"></i>Order block acheteur</span>
+      <span><i class="sw ob-bear"></i>Order block vendeur</span>
+      <span><i class="sw fvg"></i>FVG non comblé</span>
+      <span><i class="sw sweep"></i>Chasse de liquidité</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="panel-head"><h2>Empreintes récentes</h2></div>
+      <ol class="events" id="events"></ol>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Positions des institutions</h2>
+        <span class="source" id="cot-date"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="cot">
+          <thead><tr><th>Groupe</th><th>Net</th><th>1 sem.</th><th>4 sem.</th><th>Indice 3 ans</th></tr></thead>
+          <tbody id="cot-body"></tbody>
+        </table>
+      </div>
+      <div id="cot-chart" class="cot-chart"></div>
+      <p class="help">Net = contrats achetés moins contrats vendus. L'indice compare la position actuelle aux extrêmes des 3 dernières années : près de 100, ce groupe n'a presque jamais été aussi acheteur ; près de 0, aussi vendeur.</p>
+    </section>
+  </div>
+
+  <section class="panel help-panel">
+    <h2>Comment lire K2K</h2>
+    <ul>
+      <li><b>Institutions</b> : chaque vendredi, la CFTC publie les positions des banques et des fonds sur les contrats à terme (données du mardi). C'est le biais de fond, pour plusieurs semaines.</li>
+      <li><b>Graphique</b> : K2K repère les cassures de structure (BOS, CHoCH), les order blocks, les FVG, les chasses de liquidité et les volumes anormaux. C'est le timing.</li>
+      <li><b>Quand les deux sont d'accord</b>, le signal est plus solide. Quand ils divergent, la prudence est de mise.</li>
+      <li><b>NAS100</b> n'a pas de flux de prix gratuit : exporte tes bougies depuis MT5 (clic droit sur le graphique, Bougies, Exporter) ou TradingView (menu, Exporter les données du graphique), puis importe le fichier.</li>
+    </ul>
+  </section>
+</main>
+
+<script src="vendor/lightweight-charts.standalone.production.js"></script>
+<script src="smc.js"></script>
+<script src="cot.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
