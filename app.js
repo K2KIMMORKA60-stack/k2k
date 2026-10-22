@@ -120,7 +120,7 @@
     const key = state.sym + state.tf;
     if (state.fitted !== key) {
       state.fitted = key;
-      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, f.candles.length - (narrow ? 80 : 150)), to: f.candles.length + 4 });
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, f.candles.length - (narrow ? 40 : 100)), to: f.candles.length + 3 });
     }
     requestAnimationFrame(drawZones);
   }
@@ -190,7 +190,7 @@
       });
       scanCharts.push(ch);
       const se = ch.addCandlestickSeries(CANDLES);
-      se.setData(f.candles.slice(-120).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
+      se.setData(f.candles.slice(-50).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
       for (const z of zones) near.push({ tf: t.label, z, last: f.candles[f.candles.length - 1].close });
       const holder = card.querySelector('.scan-chart'), cv = card.querySelector('.scan-zones');
       const redraw = () => requestAnimationFrame(() => drawBoxes(cv, holder, ch, se, zones, false));

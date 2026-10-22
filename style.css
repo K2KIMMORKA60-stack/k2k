@@ -112,7 +112,7 @@ table.cot { width: 100%; border-collapse: collapse; font-size: 13px; }
 
 @media (max-width: 520px) {
   h1 { font-size: 21px; }
-  .chart-wrap { height: 320px; }
+  .chart-wrap { height: 400px; }
   .markets button { padding: 7px 9px; }
 }
 @media (prefers-reduced-motion: reduce) { .g-bar { transition: none; } }

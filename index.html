@@ -54,6 +54,28 @@
     </div>
   </section>
 
+  <section class="panel chart-panel">
+    <div class="panel-head">
+      <h2 id="chart-title">Graphique</h2>
+      <div class="controls">
+        <button class="btn" id="view-toggle" type="button">Vue détaillée</button>
+        <button class="btn" id="refresh" type="button">Actualiser</button>
+        <label class="btn" for="csv">Importer un fichier</label>
+        <input type="file" id="csv" accept=".csv,.txt,text/csv,text/plain" hidden>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div id="chart"></div>
+      <canvas id="zones" aria-hidden="true"></canvas>
+      <div class="chart-empty" id="chart-empty" hidden></div>
+    </div>
+    <div class="legend">
+      <span><i class="sw ob-bull"></i>Order block haussier</span>
+      <span><i class="sw ob-bear"></i>Order block baissier</span>
+    </div>
+    <p class="source" id="chart-source"></p>
+  </section>
+
   <section class="panel plan" aria-live="polite">
     <div class="panel-head">
       <h2>Plan de trade</h2>
@@ -90,27 +112,6 @@
     </div>
   </section>
 
-  <section class="panel chart-panel">
-    <div class="panel-head">
-      <h2 id="chart-title">Graphique</h2>
-      <div class="controls">
-        <button class="btn" id="view-toggle" type="button">Vue détaillée</button>
-        <button class="btn" id="refresh" type="button">Actualiser</button>
-        <label class="btn" for="csv">Importer un fichier</label>
-        <input type="file" id="csv" accept=".csv,.txt,text/csv,text/plain" hidden>
-      </div>
-    </div>
-    <div class="chart-wrap">
-      <div id="chart"></div>
-      <canvas id="zones" aria-hidden="true"></canvas>
-      <div class="chart-empty" id="chart-empty" hidden></div>
-    </div>
-    <div class="legend">
-      <span><i class="sw ob-bull"></i>Order block haussier</span>
-      <span><i class="sw ob-bear"></i>Order block baissier</span>
-    </div>
-    <p class="source" id="chart-source"></p>
-  </section>
 
   <div class="grid">
     <section class="panel">
