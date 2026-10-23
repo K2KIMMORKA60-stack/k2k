@@ -48,8 +48,8 @@
 
   function drawZones() {
     const f = frame();
-    // Vue propre : bandes fines identiques. Vue détaillée : vraie hauteur des order blocks, même couleur.
-    Zones.draw(zones, chartEl, chart, candleSeries, f ? liveZones(f, view.clean ? 4 : 6) : [], { uniform: view.clean });
+    // Order blocks précis : vert pour les haussiers, orange pour les baissiers.
+    Zones.draw(zones, chartEl, chart, candleSeries, f ? liveZones(f, view.clean ? 4 : 6) : [], {});
     if (f) drawPosition(f);
     if (!f || view.clean) return;
     // Vue détaillée : on ajoute les FVG en pointillés dorés.

@@ -39,10 +39,17 @@
     return { events, trend };
   }
 
-  // Order blocks : dernière bougie opposée avant le mouvement qui casse la structure.
+  // Order blocks, tracés comme sur TradingView : entre le sommet (ou creux) cassé et la cassure, on prend la bougie
+  // du point extrême (plus bas creux pour un OB haussier, plus haut sommet pour un OB baissier), de sa mèche haute à sa mèche basse.
   function orderBlocks(c, events) {
     const obs = [];
     for (const e of events) {
+      let x = -1;
+      for (let j = e.from; j < e.i; j++) {
+        if (x < 0 || (e.dir === 1 ? c[j].low < c[x].low : c[j].high > c[x].high)) x = j;
+      }
+      if (x >= 0 && x < e.i - 0) { obs.push({ dir: e.dir, i: x, top: c[x].high, bottom: c[x].low, time: c[x].time, cause: e.type }); continue; }
+      // Repli : dernière bougie opposée avant le mouvement qui casse la structure.
       for (let j = e.i - 1; j >= Math.max(0, e.from - 10); j--) {
         const bear = c[j].close < c[j].open, bull = c[j].close > c[j].open;
         if ((e.dir === 1 && bear) || (e.dir === -1 && bull)) {

@@ -1,9 +1,14 @@
 // K2K : dessin des zones d'achat et de vente, commun au scanner et au grand graphique.
-// Les deux zones ont la même couleur et la même épaisseur ; seule l'étiquette change (ACHAT en vert d'eau, VENTE en rouge).
+// Comme sur TradingView : OB haussier en vert, OB baissier en orange, rectangle précis de la mèche haute à la mèche basse
+// de la bougie d'origine, prolongé vers la droite.
 (function (root) {
   'use strict';
 
-  const STYLE = { fill: 'rgba(120,120,120,0.16)', stroke: '#9a9a9a', buy: '#159a8c', sell: '#e0444f', band: 5 };
+  const STYLE = {
+    buy: { fill: 'rgba(76,175,80,0.22)', stroke: '#3f7f42', ink: '#2e7d32' },
+    sell: { fill: 'rgba(255,138,92,0.30)', stroke: '#e8845c', ink: '#d0581f' },
+    band: 3,
+  };
   // Onglets « OB Touchés » (jaune) et « Réaction » (vert) : la zone concernée est surlignée.
   const HL = {
     touched: { fill: 'rgba(240,200,60,0.30)', stroke: '#d4a72c', ink: '#9a7410', suffix: ' · TOUCHÉE' },
@@ -13,7 +18,7 @@
   // Niveau d'entrée d'une zone : le haut pour une zone d'achat, le bas pour une zone de vente.
   const level = o => (o.dir > 0 ? o.top : o.bottom);
 
-  // uniform : bande fine identique pour toutes les zones. Sinon, vraie hauteur de l'order block (même couleur).
+  // Vraie hauteur de l'order block. uniform: true dessine plutôt une bande fine au niveau d'entrée.
   function draw(canvas, el, ch, series, obs, opts) {
     const o2 = opts || {};
     const r = el.getBoundingClientRect();
@@ -28,10 +33,12 @@
     for (const o of obs) {
       const hl = HL[o.hl];
       let x = ts.timeToCoordinate(o.time);
-      if (x == null) x = 0;
+      // Le rectangle part du bord gauche de la bougie d'origine.
+      x = x == null ? 0 : Math.max(0, x - ts.options().barSpacing / 2);
+      const st = o.dir > 0 ? STYLE.buy : STYLE.sell;
       if (x > plotW) continue;
       let y1, h;
-      if (o2.uniform !== false) {
+      if (o2.uniform === true) {
         const y = series.priceToCoordinate(level(o));
         // Zone hors de l'écran : simple flèche au bord, comme sur le scanner de référence.
         if (y == null || y < 0 || y > r.height) { if (o2.labels !== false) labels.push({ y: y == null || y < 0 ? 12 : r.height - 22, buy: o.dir > 0, arrow: y != null && y > r.height ? ' ▼' : ' ▲' }); continue; }
@@ -41,8 +48,8 @@
         if (a == null || b == null) continue;
         y1 = a; h = Math.max(STYLE.band, b - a);
       }
-      ctx.fillStyle = hl ? hl.fill : STYLE.fill; ctx.fillRect(x, y1, plotW - x, h);
-      ctx.strokeStyle = hl ? hl.stroke : STYLE.stroke; ctx.lineWidth = 1; ctx.setLineDash([]);
+      ctx.fillStyle = hl ? hl.fill : st.fill; ctx.fillRect(x, y1, plotW - x, h);
+      ctx.strokeStyle = hl ? hl.stroke : st.stroke; ctx.lineWidth = 1; ctx.setLineDash([]);
       ctx.strokeRect(Math.round(x) + 0.5, Math.round(y1) + 0.5, Math.max(1, Math.round(plotW - x) - 1), Math.round(h));
       if (o2.labels !== false) labels.push({ y: y1, buy: o.dir > 0, hl });
     }
@@ -57,7 +64,7 @@
       const w = ctx.measureText(text).width;
       const x = Math.max(2, plotW - w - 8);
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillRect(x - 3, y - 9, w + 6, 11);
-      ctx.fillStyle = l.hl ? l.hl.ink : l.buy ? STYLE.buy : STYLE.sell;
+      ctx.fillStyle = l.hl ? l.hl.ink : l.buy ? STYLE.buy.ink : STYLE.sell.ink;
       ctx.fillText(text, x, y);
     }
   }

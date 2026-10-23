@@ -278,3 +278,5 @@ h3 { font: 700 13px var(--display); letter-spacing: 0.02em; margin: 6px 0 6px; c
 .links li.source { display: block; }
 .tv { font: 600 12px var(--body); color: #fff; background: #2962ff; border-radius: 7px; padding: 4px 9px; text-decoration: none; white-space: nowrap; }
 .detail-top .tv { margin-left: auto; font-size: 13px; padding: 7px 12px; }
+.ob-buy { background: rgba(76,175,80,0.22); border: 1px solid #3f7f42; }
+.ob-sell { background: rgba(255,138,92,0.30); border: 1px solid #e8845c; }
