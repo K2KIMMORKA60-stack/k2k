@@ -39,13 +39,19 @@
     <div class="frow">
       <span class="flabel">Unité</span>
       <div class="chips" id="f-unit">
-        <button type="button" data-v="5m">5m</button><button type="button" data-v="15m">15m</button><button type="button" data-v="1h">1h</button><button type="button" data-v="4h">4h</button><button type="button" data-v="1d">Daily</button><button type="button" data-v="1w">Weekly</button>
+        <button type="button" data-v="5m">5m</button><button type="button" data-v="15m">15m</button><button type="button" data-v="30m">30m</button><button type="button" data-v="1h">1h</button><button type="button" data-v="4h">4h</button><button type="button" data-v="1d">Daily</button><button type="button" data-v="1w">Weekly</button>
       </div>
     </div>
     <div class="frow">
       <span class="flabel">Classe</span>
       <div class="chips" id="f-cls">
         <button type="button" data-v="NQ100">NQ100</button><button type="button" data-v="Indices">Indices</button><button type="button" data-v="Métaux">Métaux</button><button type="button" data-v="Énergie">Énergie</button><button type="button" data-v="Forex">Forex</button><button type="button" data-v="Crypto">Crypto</button>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="flabel">Étoiles</span>
+      <div class="seg stars-seg" id="f-stars" aria-label="Qualité minimale des order blocks">
+        <button type="button" data-v="5">★★★★★</button><button type="button" data-v="4">4★ et +</button><button type="button" data-v="3">3★ et +</button><button type="button" data-v="1">Toutes</button>
       </div>
     </div>
     <div class="frow">
@@ -107,6 +113,7 @@
     <div class="panel-head">
       <h2><span id="chart-title">Graphique</span> <span class="live" id="live" hidden>● En direct</span></h2>
       <div class="controls">
+        <select id="d-stars" aria-label="Qualité minimale des order blocks"><option value="5">★★★★★ seulement</option><option value="4">4★ et +</option><option value="3">3★ et +</option><option value="1">Toutes les zones</option></select>
         <button class="btn" id="view-toggle" type="button">Vue détaillée</button>
         <button class="btn" id="refresh" type="button">Actualiser</button>
         <label class="btn" for="csv">Importer un fichier</label>

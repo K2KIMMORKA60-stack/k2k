@@ -40,6 +40,7 @@
   }
   bindChips('f-unit', v => v === ui.unit, v => { ui.unit = v; store.set('unit', v); scan(); });
   bindChips('f-cls', v => ui.cls.has(v), v => { if (ui.cls.has(v)) ui.cls.delete(v); else ui.cls.add(v); store.set('cls', [...ui.cls].join(',')); render(); });
+  bindChips('f-stars', v => +v === Zones.minStars, v => { Zones.setMinStars(+v); render(); });
   bindChips('f-sort', v => v === ui.sort, v => { ui.sort = v; store.set('sort', v); render(); });
   bindChips('f-layout', v => v === ui.layout, v => { ui.layout = v; store.set('layout', v); render(); });
   $('f-search').addEventListener('input', e => { ui.q = e.target.value.trim().toUpperCase(); render(); });
@@ -107,7 +108,7 @@
       const r = results[m.sym];
       if (!r || !r.f) continue;
       const z = zonesFor(r.f);
-      if (ui.mode !== 'scan' && !z.length) continue;
+      if (!z.length && (ui.mode !== 'scan' || Zones.minStars > 1)) continue;
       // Note de la carte : meilleure zone (qualité de l'order block, moins un malus si elle est loin du prix).
       const grade = z.length ? Math.max(...z.map(o => Math.round(Math.max(0, o.quality - o.dist * 1000)))) : 0;
       items.push({ m, f: r.f, z, grade, near: z.length ? z[0].dist : Infinity, count: z.length, recent: z.length ? Math.max(...z.map(o => o.time)) : 0 });
@@ -121,6 +122,7 @@
     if ((!sel.size || sel.has('Forex')) && results.EURUSD && results.EURUSD.err) box.appendChild(note('Forex : l\'euro (EUR/USDT sur Binance) n\'a pas répondu. Les autres paires Forex n\'ont pas de flux gratuit.'));
     if (!items.some(i => !i.file)) {
       const msg = scanning || !scannedAt ? 'Scan en cours…'
+        : ui.mode === 'scan' && Zones.minStars > 1 && !items.some(i => i.count) ? 'Aucun order block ' + Zones.minStars + ' étoiles en ' + label(ui.unit) + ' pour le moment. Essaie « 4★ et + » ou une autre unité.'
         : ui.mode === 'touched' ? 'Aucun order block touché sur les 3 dernières bougies ' + label(ui.unit) + '.'
         : ui.mode === 'reaction' ? 'Aucune réaction nette sur un order block en ' + label(ui.unit) + ' pour le moment.'
         : 'Aucun marché ne correspond à ta recherche.';

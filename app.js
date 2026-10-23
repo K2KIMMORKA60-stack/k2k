@@ -45,6 +45,9 @@
   const scanSeries = {};
 
   const liveZones = (f, n) => Zones.nearest(f, n);
+  const starSel = $('d-stars');
+  starSel.value = String(Zones.minStars);
+  starSel.addEventListener('change', () => { Zones.setMinStars(+starSel.value); renderScanner(); renderChart(); });
 
   function drawZones() {
     const f = frame();

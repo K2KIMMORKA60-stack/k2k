@@ -76,7 +76,7 @@ async function main() {
         + 'Zone ' + fmt(o.bottom) + ' – ' + fmt(o.top) + '\n'
         + 'Touché à ' + fmt(o.at) + '\n'
         + 'Prix actuel ' + fmt(last) + '\n'
-        + 'Note de la zone ' + o.quality + '/100' + (m.sym === 'XAUUSD' ? ' (prix PAXG, proche de l\'or spot)' : '') + '\n'
+        + 'Qualité ' + '★'.repeat(o.stars || 1) + ' (' + (o.stars || 1) + '/5) · note ' + o.quality + '/100' + (m.sym === 'XAUUSD' ? ' (prix PAXG, proche de l\'or spot)' : '') + '\n'
         + url;
       out.push({ key, text, url });
     }

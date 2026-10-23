@@ -211,6 +211,9 @@
       if (o.top - o.bottom > unit * 3) q -= 10; // zone trop large : stop trop loin
       o.quality = Math.max(0, Math.min(100, q));
       o.why = why;
+      // Étoiles : les 5 critères qui donnent le plus de chances de réaction. 5 étoiles = tous réunis.
+      const keys = ['départ violent', 'FVG laissé derrière', 'a pris de la liquidité', 'jamais touché', o.dir > 0 ? 'en zone discount' : 'en zone premium'];
+      o.stars = Math.max(1, keys.filter(k => why.includes(k)).length);
     }
     return obs;
   }
