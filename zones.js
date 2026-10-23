@@ -91,6 +91,12 @@
     window.open('https://claude.ai/new?q=' + encodeURIComponent(text.slice(0, 1800)), '_blank', 'noopener');
   }
 
-  const api = { STYLE, level, draw, nearest, askClaude, setMinStars, get minStars() { return minStars; } };
+  // Prix affichés comme sur TradingView : séparateur de milliers fin, décimales selon le marché.
+  function fmtPrice(p) {
+    const a = Math.abs(p), d = a >= 10000 ? 0 : a >= 100 ? 2 : a >= 10 ? 3 : 5;
+    return p.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+
+  const api = { fmtPrice, STYLE, level, draw, nearest, askClaude, setMinStars, get minStars() { return minStars; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Zones = api;
 })(typeof self !== 'undefined' ? self : this);

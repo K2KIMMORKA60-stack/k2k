@@ -161,8 +161,8 @@
     const holder = el.querySelector('.card-chart'), cv = el.querySelector('.scan-zones');
     const levels = z.map(o => o.level);
     const ch = LightweightCharts.createChart(el.querySelector('.cc'), {
-      autoSize: true, localization: { locale: 'fr-FR' },
-      layout: { background: { color: '#ffffff' }, textColor: '#5b6577', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10 },
+      autoSize: true, localization: { locale: 'fr-FR', priceFormatter: Zones.fmtPrice },
+      layout: { background: { color: '#ffffff' }, textColor: '#131722', fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif", fontSize: 10 },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
       timeScale: { borderVisible: false, timeVisible: scannedUnit !== '1d' && scannedUnit !== '1w', rightOffset: 4 },

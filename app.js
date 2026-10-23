@@ -32,8 +32,8 @@
   const chartEl = $('chart'), zones = $('zones');
   const chart = LightweightCharts.createChart(chartEl, {
     autoSize: true,
-    localization: { locale: 'fr-FR' },
-    layout: { background: { color: PAPER.bg }, textColor: PAPER.ink, fontFamily: 'IBM Plex Mono, monospace' },
+    localization: { locale: 'fr-FR', priceFormatter: Zones.fmtPrice },
+    layout: { background: { color: PAPER.bg }, textColor: '#131722', fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif" },
     grid: { vertLines: { visible: false }, horzLines: { visible: false } },
     rightPriceScale: { borderColor: PAPER.grid },
     timeScale: { borderColor: PAPER.grid, timeVisible: true, secondsVisible: false, rightOffset: 12 },
@@ -178,8 +178,8 @@
       const buys = zones.filter(z => z.dir > 0).length;
       card.querySelector('span').textContent = buys + ' achat · ' + (zones.length - buys) + ' vente';
       const ch = LightweightCharts.createChart(card.querySelector('.scan-chart'), {
-        autoSize: true, localization: { locale: 'fr-FR' },
-        layout: { background: { color: PAPER.bg }, textColor: PAPER.ink, fontFamily: 'IBM Plex Mono, monospace', fontSize: 10 },
+        autoSize: true, localization: { locale: 'fr-FR', priceFormatter: Zones.fmtPrice },
+        layout: { background: { color: PAPER.bg }, textColor: '#131722', fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif", fontSize: 10 },
         grid: { vertLines: { visible: false }, horzLines: { visible: false } },
         rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true, rightOffset: 6 },
         handleScroll: false, handleScale: false, crosshair: { mode: 2 },
