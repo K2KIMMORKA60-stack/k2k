@@ -158,7 +158,9 @@
     $('cards').appendChild(el); // le graphique a besoin d'être dans la page pour prendre sa taille
 
     const holder = el.querySelector('.card-chart'), cv = el.querySelector('.scan-zones');
-    const levels = z.map(o => o.level);
+    // L'échelle s'élargit seulement pour les zones proches : les bougies restent grandes et lisibles.
+    const shown = f.candles.slice(-70), hi = Math.max(...shown.map(k => k.high)), lo = Math.min(...shown.map(k => k.low)), ext = (hi - lo) * 0.5;
+    const levels = z.flatMap(o => [o.top, o.bottom]).filter(v => v >= lo - ext && v <= hi + ext);
     const ch = LightweightCharts.createChart(el.querySelector('.cc'), {
       autoSize: true, localization: { locale: 'fr-FR', priceFormatter: Zones.fmtPrice },
       layout: { background: { color: '#ffffff' }, textColor: '#131722', fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif", fontSize: 10 },

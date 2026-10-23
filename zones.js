@@ -7,8 +7,8 @@
   const STYLE = {
     // Teintes pâles et bordure fine, comme les rectangles dessinés sur TradingView.
     // Gris clair uni, sans bordure, pour toutes les zones (choix de Khaldor d'après son graphique US30).
-    buy: { fill: 'rgba(150,150,150,0.32)', stroke: null, ink: '#2e7d32' },
-    sell: { fill: 'rgba(150,150,150,0.32)', stroke: null, ink: '#c9573a' },
+    buy: { fill: 'rgba(128,128,128,0.40)', stroke: null, ink: '#2e7d32' },
+    sell: { fill: 'rgba(128,128,128,0.40)', stroke: null, ink: '#c9573a' },
     band: 3,
   };
   // Onglets « OB Touchés » (jaune) et « Réaction » (vert) : la zone concernée est surlignée.
@@ -86,8 +86,13 @@
     const last = f.candles[f.candles.length - 1].close;
     const ms = min == null ? minStars : min;
     const atr = f.smc.atr || Infinity;
-    // Zones trop épaisses (plus de 2,5 bougies moyennes) écartées : peu précises et lourdes à l'œil.
-    return f.smc.orderBlocks.filter(o => o.status !== 'invalidé' && (o.stars || 1) >= ms && o.top - o.bottom <= atr * 2.5)
+    // Zones trop épaisses (plus de 3 bougies moyennes) écartées : peu précises et lourdes à l'œil.
+    const valid = f.smc.orderBlocks.filter(o => o.status !== 'invalidé' && o.top - o.bottom <= atr * 3);
+    // S'il n'y a aucune zone au niveau d'étoiles demandé, on montre quand même les meilleures disponibles :
+    // le graphique ne reste jamais vide.
+    const best = Math.max(0, ...valid.map(o => o.stars || 1));
+    const need = Math.min(ms, best);
+    return valid.filter(o => (o.stars || 1) >= need)
       .map(o => ({ ...o, level: level(o), dist: (last <= o.top && last >= o.bottom) ? 0 : Math.abs(level(o) - last) / last }))
       .sort((a, b) => a.dist - b.dist)
       // Zones qui se chevauchent dans le même sens : on garde la meilleure, pour un graphique lisible.
