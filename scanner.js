@@ -143,7 +143,7 @@
     const { m, f, z } = it;
     const el = document.createElement('article');
     el.className = 'card';
-    el.innerHTML = '<div class="card-chart"><div class="cc"></div><canvas class="scan-zones" aria-hidden="true"></canvas><button class="grow" type="button">Agrandir ⤢</button></div><div class="card-foot"></div>';
+    el.innerHTML = '<div class="card-chart"><div class="cc"></div><canvas class="scan-zones" aria-hidden="true"></canvas><button class="grow" type="button">Agrandir ⤢</button><a class="tv tv-mini" target="_blank" rel="noopener">TradingView ↗</a></div><div class="card-foot"></div>';
     const foot = el.querySelector('.card-foot');
     const sym = document.createElement('b'); sym.className = 'sym'; sym.textContent = m.sym; foot.appendChild(sym);
     foot.appendChild(badge('tf', label(scannedUnit)));
@@ -151,9 +151,8 @@
     if (z.some(o => o.dir < 0)) foot.appendChild(badge('sell', 'VENTE'));
     const dist = badge('dist', '');
     if (z.length) foot.appendChild(dist);
-    if (z.length) foot.appendChild(badge('grade' + (it.grade >= 70 ? ' hi' : ''), 'note ' + it.grade));
     const cls = document.createElement('span'); cls.className = 'cls'; cls.textContent = m.cls; foot.appendChild(cls);
-    const tv = document.createElement('a'); tv.className = 'tv'; tv.href = Prices.tvUrl(m.sym, scannedUnit); tv.target = '_blank'; tv.rel = 'noopener'; tv.textContent = 'TradingView ↗'; foot.appendChild(tv);
+    el.querySelector('.tv-mini').href = Prices.tvUrl(m.sym, scannedUnit);
     const open = () => { location.hash = '#/' + m.sym + '/' + UNIT_TF[scannedUnit]; };
     el.querySelector('.grow').addEventListener('click', open);
     $('cards').appendChild(el); // le graphique a besoin d'être dans la page pour prendre sa taille
@@ -165,7 +164,7 @@
       layout: { background: { color: '#ffffff' }, textColor: '#131722', fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif", fontSize: 10 },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
-      timeScale: { borderVisible: false, timeVisible: scannedUnit !== '1d' && scannedUnit !== '1w', rightOffset: 4 },
+      timeScale: { borderVisible: false, timeVisible: scannedUnit !== '1d' && scannedUnit !== '1w', rightOffset: 3, barSpacing: 5 },
       handleScroll: false, handleScale: false, crosshair: { mode: 2 },
     });
     const entry = { ch, dead: false };
@@ -179,7 +178,7 @@
         return r;
       },
     });
-    se.setData(f.candles.slice(-80).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
+    se.setData(f.candles.slice(-70).map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
     const redraw = () => requestAnimationFrame(() => { if (!entry.dead) Zones.draw(cv, holder, ch, se, z, {}); });
     ch.timeScale().subscribeVisibleTimeRangeChange(redraw);
     entry.ro = new ResizeObserver(redraw);

@@ -30,6 +30,9 @@
     ctx.clearRect(0, 0, r.width, r.height);
     const ts = ch.timeScale();
     const plotW = r.width - series.priceScale().width();
+    // On ne dessine que dans la zone des bougies, jamais sur l'axe du temps.
+    const plotH = r.height - ts.height();
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, plotW, plotH); ctx.clip();
     const labels = [];
     for (const o of obs) {
       const hl = HL[o.hl];
@@ -54,6 +57,7 @@
       ctx.strokeRect(Math.round(x) + 0.5, Math.round(y1) + 0.5, Math.max(1, Math.round(plotW - x) - 1), Math.round(h));
       if (o2.labels === true) labels.push({ y: y1, buy: o.dir > 0, hl, stars: o.stars });
     }
+    ctx.restore();
     // Étiquettes à droite, décalées si deux zones sont trop proches pour rester lisibles.
     ctx.font = '600 9px IBM Plex Mono, monospace';
     labels.sort((a, b) => a.y - b.y);
@@ -79,9 +83,18 @@
   function nearest(f, n, min) {
     const last = f.candles[f.candles.length - 1].close;
     const ms = min == null ? minStars : min;
-    return f.smc.orderBlocks.filter(o => o.status !== 'invalidé' && (o.stars || 1) >= ms)
+    const atr = f.smc.atr || Infinity;
+    // Zones trop épaisses (plus de 2,5 bougies moyennes) écartées : peu précises et lourdes à l'œil.
+    return f.smc.orderBlocks.filter(o => o.status !== 'invalidé' && (o.stars || 1) >= ms && o.top - o.bottom <= atr * 2.5)
       .map(o => ({ ...o, level: level(o), dist: (last <= o.top && last >= o.bottom) ? 0 : Math.abs(level(o) - last) / last }))
-      .sort((a, b) => a.dist - b.dist).slice(0, n || 5);
+      .sort((a, b) => a.dist - b.dist)
+      // Zones qui se chevauchent dans le même sens : on garde la meilleure, pour un graphique lisible.
+      .reduce((keep, o) => {
+        const clash = keep.find(k => k.dir === o.dir && Math.min(k.top, o.top) - Math.max(k.bottom, o.bottom) > 0.3 * Math.min(k.top - k.bottom, o.top - o.bottom));
+        if (!clash) keep.push(o); else if (o.quality > clash.quality) keep[keep.indexOf(clash)] = o;
+        return keep;
+      }, [])
+      .slice(0, n || 5);
   }
 
   // Ouvre Claude (l'appli si elle est installée, sinon claude.ai) avec la question déjà écrite.
