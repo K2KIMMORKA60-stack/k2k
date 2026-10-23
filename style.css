@@ -285,3 +285,4 @@ h3 { font: 700 13px var(--display); letter-spacing: 0.02em; margin: 6px 0 6px; c
 .controls select { font: 500 13px var(--body); }
 .tv-mini { position: absolute; top: 8px; right: 70px; z-index: 3; font-size: 11px; padding: 5px 8px; opacity: 0.92; }
 @media (max-width: 520px) { .tv-mini { right: 62px; } }
+.ob-gray { background: rgba(150,150,150,0.32); }

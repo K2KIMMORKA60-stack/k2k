@@ -6,8 +6,9 @@
 
   const STYLE = {
     // Teintes pâles et bordure fine, comme les rectangles dessinés sur TradingView.
-    buy: { fill: 'rgba(120,190,120,0.16)', stroke: 'rgba(60,120,64,0.75)', ink: '#2e7d32' },
-    sell: { fill: 'rgba(240,140,120,0.16)', stroke: 'rgba(225,120,100,0.65)', ink: '#c9573a' },
+    // Gris clair uni, sans bordure, pour toutes les zones (choix de Khaldor d'après son graphique US30).
+    buy: { fill: 'rgba(150,150,150,0.32)', stroke: null, ink: '#2e7d32' },
+    sell: { fill: 'rgba(150,150,150,0.32)', stroke: null, ink: '#c9573a' },
     band: 3,
   };
   // Onglets « OB Touchés » (jaune) et « Réaction » (vert) : la zone concernée est surlignée.
@@ -53,8 +54,9 @@
         y1 = a; h = Math.max(STYLE.band, b - a);
       }
       ctx.fillStyle = hl ? hl.fill : st.fill; ctx.fillRect(x, y1, plotW - x, h);
-      ctx.strokeStyle = hl ? hl.stroke : st.stroke; ctx.lineWidth = 1; ctx.setLineDash([]);
-      ctx.strokeRect(Math.round(x) + 0.5, Math.round(y1) + 0.5, Math.max(1, Math.round(plotW - x) - 1), Math.round(h));
+      const stroke = hl ? hl.stroke : st.stroke;
+      ctx.strokeStyle = stroke || 'transparent'; ctx.lineWidth = 1; ctx.setLineDash([]);
+      if (stroke) ctx.strokeRect(Math.round(x) + 0.5, Math.round(y1) + 0.5, Math.max(1, Math.round(plotW - x) - 1), Math.round(h));
       if (o2.labels === true) labels.push({ y: y1, buy: o.dir > 0, hl, stars: o.stars });
     }
     ctx.restore();
