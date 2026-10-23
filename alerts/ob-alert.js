@@ -50,7 +50,9 @@ function touched(candles) {
 }
 
 async function main() {
-  const token = process.env.TELEGRAM_TOKEN;
+  // Le secret peut contenir tout le message de BotFather : on en extrait seulement le code (chiffres:lettres).
+  const raw = process.env.TELEGRAM_TOKEN || '';
+  const token = (raw.match(/\d{6,}:[A-Za-z0-9_-]{30,}/) || [raw.trim()])[0] || '';
   let state = {};
   try { state = JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch (e) { /* premier passage */ }
   state.sent = state.sent || {};
