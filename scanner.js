@@ -151,6 +151,7 @@
     if (z.length) foot.appendChild(dist);
     if (z.length) foot.appendChild(badge('grade' + (it.grade >= 70 ? ' hi' : ''), 'note ' + it.grade));
     const cls = document.createElement('span'); cls.className = 'cls'; cls.textContent = m.cls; foot.appendChild(cls);
+    const tv = document.createElement('a'); tv.className = 'tv'; tv.href = Prices.tvUrl(m.sym, scannedUnit); tv.target = '_blank'; tv.rel = 'noopener'; tv.textContent = 'TradingView ↗'; foot.appendChild(tv);
     const open = () => { location.hash = '#/' + m.sym + '/' + UNIT_TF[scannedUnit]; };
     el.querySelector('.grow').addEventListener('click', open);
     $('cards').appendChild(el); // le graphique a besoin d'être dans la page pour prendre sa taille

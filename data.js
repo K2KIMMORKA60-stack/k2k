@@ -67,6 +67,11 @@
     return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) / 1000);
   }
 
-  const api = { LIVE, UNIVERSE, fetchLive, parseCsv };
+  // Lien vers le même marché dans TradingView (s'ouvre dans l'appli TradingView si elle est installée).
+  const TV = { XAUUSD: 'OANDA:XAUUSD', NAS100: 'OANDA:NAS100USD', BTC: 'BINANCE:BTCUSDT', ETH: 'BINANCE:ETHUSDT', SOL: 'BINANCE:SOLUSDT', BNB: 'BINANCE:BNBUSDT', XRP: 'BINANCE:XRPUSDT', EURUSD: 'OANDA:EURUSD' };
+  const TV_TF = { '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
+  const tvUrl = (sym, tf) => 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(TV[sym] || sym) + '&interval=' + (TV_TF[tf] || '60');
+
+  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, parseCsv };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Prices = api;
 })(typeof self !== 'undefined' ? self : this);

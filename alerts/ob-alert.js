@@ -5,13 +5,10 @@
 const fs = require('fs');
 const path = require('path');
 const SMC = require('../smc.js');
-const { LIVE, UNIVERSE } = require('../data.js');
+const { LIVE, UNIVERSE, tvUrl } = require('../data.js');
 
 const TFS = (process.env.ALERT_TFS || '4h,1h').split(',');
-const TV_TF = { '15m': '15', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
 const STATE = process.env.STATE_FILE || path.join(__dirname, 'state.json');
-// Symboles TradingView qui correspondent à chaque marché K2K.
-const TV = { XAUUSD: 'OANDA:XAUUSD', BTC: 'BINANCE:BTCUSDT', ETH: 'BINANCE:ETHUSDT', SOL: 'BINANCE:SOLUSDT', BNB: 'BINANCE:BNBUSDT', XRP: 'BINANCE:XRPUSDT', EURUSD: 'OANDA:EURUSD' };
 // Les serveurs de GitHub sont aux États-Unis, où api.binance.com refuse l'accès : on passe d'abord par le miroir public.
 const HOSTS = ['https://data-api.binance.vision', 'https://api.binance.com'];
 
@@ -72,7 +69,7 @@ async function main() {
     for (const o of touched(c)) {
       const key = m.sym + '|' + TF + '|' + o.time + '|' + o.dir;
       if (state.sent[key]) continue;
-      const url = 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(TV[m.sym]) + '&interval=' + (TV_TF[TF] || '240');
+      const url = tvUrl(m.sym, TF);
       const text = (o.dir > 0 ? '🟢 OB haussier touché' : '🔴 OB baissier touché') + ' — ' + m.sym + ' ' + TF + '\n'
         + 'Zone ' + fmt(o.bottom) + ' – ' + fmt(o.top) + '\n'
         + 'Touché à ' + fmt(o.at) + '\n'

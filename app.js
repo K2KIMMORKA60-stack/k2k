@@ -686,6 +686,7 @@
     state.sym = sym;
     const u = Prices.UNIVERSE.find(m => m.sym === sym);
     $('d-sym').textContent = sym;
+    $('d-tv').href = Prices.tvUrl(sym, state.tf);
     $('d-name').textContent = u ? u.name + ' · ' + u.cls : '';
     state.fitted = '';
     corrFor = '';
@@ -697,6 +698,7 @@
   function selectTf(tf) {
     state.tf = tf;
     store.set('tf', tf);
+    $('d-tv').href = Prices.tvUrl(state.sym, tf);
     renderMtf(); renderChart(); renderEvents();
     connectLive();
     document.querySelectorAll('.scan-card').forEach((c, i) => c.setAttribute('aria-pressed', String(TFS[i].tf === tf)));
