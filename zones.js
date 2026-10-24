@@ -1,11 +1,9 @@
 // K2K : dessin des zones d'achat et de vente, commun au scanner et au grand graphique.
-// Comme sur TradingView : OB haussier en vert, OB baissier en orange, rectangle précis de la mèche haute à la mèche basse
-// de la bougie d'origine, prolongé vers la droite.
+// Rectangle gris clair uni, sans bordure, de la mèche haute à la mèche basse de la bougie d'origine, prolongé vers la droite.
 (function (root) {
   'use strict';
 
   const STYLE = {
-    // Teintes pâles et bordure fine, comme les rectangles dessinés sur TradingView.
     // Gris clair uni, sans bordure, pour toutes les zones (choix de Khaldor d'après son graphique US30).
     buy: { fill: 'rgba(128,128,128,0.40)', stroke: null, ink: '#2e7d32' },
     sell: { fill: 'rgba(128,128,128,0.40)', stroke: null, ink: '#c9573a' },
