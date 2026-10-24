@@ -39,15 +39,7 @@
     timeScale: { borderColor: PAPER.grid, timeVisible: true, secondsVisible: false, rightOffset: 12 },
     crosshair: { mode: 0 },
   });
-  // L'échelle inclut toujours SL et TP3 du plan, pour que toutes les lignes restent visibles.
-  const candleSeries = chart.addCandlestickSeries({
-    ...CANDLES, priceLineVisible: false, lastValueVisible: false,
-    autoscaleInfoProvider: orig => {
-      const r = orig(), L = planLevels(state.plan);
-      if (r && L) { const v = [L.sl, ...L.tps]; r.priceRange.minValue = Math.min(r.priceRange.minValue, ...v); r.priceRange.maxValue = Math.max(r.priceRange.maxValue, ...v); }
-      return r;
-    },
-  });
+  const candleSeries = chart.addCandlestickSeries({ ...CANDLES, priceLineVisible: false, lastValueVisible: false });
   // Ligne du prix actuel avec le compte à rebours jusqu'à la clôture de la bougie, comme sur TradingView.
   const nowLine = candleSeries.createPriceLine({ price: 0, color: '#111111', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '', lineVisible: false });
   const scanSeries = {};
@@ -76,62 +68,25 @@
   new ResizeObserver(() => requestAnimationFrame(drawZones)).observe(chartEl);
 
   // Position façon TradingView : vert de l'entrée au TP1, rose de l'entrée au stop, à droite de la dernière bougie.
-  // Taille d'un pip comme sur MT5 / TradingView (or : 0,1 ; euro : 0,0001 ; indices et crypto : 1 point).
-  const PIP = { XAUUSD: 0.1, EURUSD: 0.0001, NAS100: 1, BTC: 1, ETH: 0.1, SOL: 0.01, BNB: 0.1, XRP: 0.0001 };
-  const pips = d => Math.round(d / (PIP[state.sym] || 1));
-
-  // Niveaux façon Khaldor : Entrée / BE, SL, et TP1, TP2, TP3 espacés d'1 R (même distance que le stop).
-  function planLevels(p) {
-    if (!p || p.status === 'wait') return null;
-    const tps = [1, 2, 3].map(k => p.entry + p.dir * p.risk * k);
-    return { entry: p.entry, sl: p.stop, tps };
-  }
-
-  // Lignes de plan sur toute la largeur, avec étiquettes colorées à gauche, comme sur son TradingView.
   function drawPosition(f) {
-    const L = planLevels(state.plan);
-    if (!L) return;
+    const p = state.plan;
+    if (!p || p.status === 'wait' || !p.tp1) return;
     const ctx = zones.getContext('2d');
     const r = chartEl.getBoundingClientRect();
     const plotW = r.width - candleSeries.priceScale().width();
-    const plotH = r.height - chart.timeScale().height();
-    const y = v => candleSeries.priceToCoordinate(v);
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, plotW, plotH); ctx.clip();
+    const ts = chart.timeScale();
+    const lastX = ts.timeToCoordinate(f.candles[f.candles.length - 1].time);
+    if (lastX == null) return;
+    const x = Math.min(lastX + 8, plotW - 30), w = Math.max(30, plotW - x - 6);
+    const yE = candleSeries.priceToCoordinate(p.entry), yT = candleSeries.priceToCoordinate(p.tp1.price), yS = candleSeries.priceToCoordinate(p.stop);
+    if (yE == null || yT == null || yS == null) return;
     ctx.setLineDash([]);
-    ctx.font = '700 12px -apple-system, BlinkMacSystemFont, Roboto, sans-serif';
-    const risk = Math.abs(L.entry - L.sl);
-    const greens = ['#2bb673', '#1fa463', '#14894f'];
-    const items = [
-      { v: L.sl, color: '#e53935', text: 'SL  ' + price(L.sl) + '  (-' + pips(risk) + ' pips)' },
-      { v: L.entry, color: '#1e63d6', text: 'ENTRÉE / BE  ' + price(L.entry) },
-      ...L.tps.map((v, i) => ({ v, color: greens[i], text: 'TP' + (i + 1) + '  ' + price(v) + '  (+' + pips(Math.abs(v - L.entry)) + ' pips)' })),
-    ].map(it => ({ ...it, y: y(it.v) })).filter(it => it.y != null);
-    for (const it of items) {
-      ctx.strokeStyle = it.color; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(0, Math.round(it.y) + 0.5); ctx.lineTo(plotW, Math.round(it.y) + 0.5); ctx.stroke();
-    }
-    // Étiquettes au-dessus de leur ligne, écartées d'au moins 20 px pour ne jamais se chevaucher.
-    items.sort((a, b) => a.y - b.y);
-    let prevY = -Infinity;
-    for (const it of items) {
-      const ly = Math.max(it.y - 20, prevY + 20);
-      prevY = ly;
-      const w = ctx.measureText(it.text).width + 12;
-      ctx.fillStyle = it.color; ctx.fillRect(8, ly, w, 18);
-      ctx.fillStyle = '#ffffff'; ctx.fillText(it.text, 14, ly + 13);
-    }
-    // Écart TP1 -> TP2, en $ et en pips.
-    const y1 = y(L.tps[0]), y2 = y(L.tps[1]);
-    if (y1 != null && y2 != null) {
-      const xm = Math.min(plotW * 0.45, plotW - 200);
-      ctx.strokeStyle = '#111'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(xm, y1); ctx.lineTo(xm, y2); ctx.stroke();
-      const text = 'TP1 → TP2 = ' + price(risk, L.entry) + (state.sym === 'EURUSD' ? '' : ' $') + ' = ' + pips(risk) + ' pips';
-      const w = ctx.measureText(text).width + 12, ym = (y1 + y2) / 2;
-      ctx.fillStyle = '#111'; ctx.fillRect(xm + 6, ym - 10, w, 20);
-      ctx.fillStyle = '#ffe14d'; ctx.fillText(text, xm + 12, ym + 4);
-    }
-    ctx.restore();
+    ctx.fillStyle = 'rgba(90,170,90,0.28)'; ctx.fillRect(x, Math.min(yE, yT), w, Math.abs(yT - yE));
+    ctx.fillStyle = 'rgba(240,150,130,0.35)'; ctx.fillRect(x, Math.min(yE, yS), w, Math.abs(yS - yE));
+    ctx.strokeStyle = '#6b6b6b'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, yE + 0.5); ctx.lineTo(x + w, yE + 0.5); ctx.stroke();
+    ctx.fillStyle = '#3d6b3d'; ctx.font = '600 11px IBM Plex Mono, monospace';
+    ctx.fillText('TP1', x + w / 2 - 10, (yE + yT) / 2 + 4);
+    ctx.fillStyle = '#9a4a3a'; ctx.fillText('SL', x + w / 2 - 7, (yE + yS) / 2 + 4);
   }
 
   let liqLines = [];
@@ -287,16 +242,22 @@
     pill.textContent = labels[p.status];
     pill.className = 'pill ' + (p.status === 'weak' ? 'warn' : buy ? 'bull' : 'bear');
     const tile = (cls, k, v, sub) => { const d = document.createElement('div'); d.className = 'level ' + cls; d.innerHTML = '<span class="k"></span><span class="v"></span><span class="s"></span>'; d.children[0].textContent = k; d.children[1].textContent = v; d.children[2].textContent = sub; lv.appendChild(d); };
-    tile('entry', 'Entrée / BE', price(p.entry), p.atMarket ? 'au marché · OB ' + p.tf : 'limite · OB ' + p.tf);
-    tile('stop', 'SL', price(p.stop), '−' + pips(p.risk) + ' pips · −1 R');
-    const L = planLevels(p);
-    L.tps.forEach((v, i) => tile('tp', 'TP' + (i + 1), price(v), '+' + pips(Math.abs(v - p.entry)) + ' pips · ' + (i + 1) + ' R'));
+    tile('entry', 'Entrée', price(p.entry), p.atMarket ? 'au marché · OB ' + p.tf : 'limite · OB ' + p.tf);
+    tile('stop', 'Stop', price(p.stop), '−1 R · ' + price(p.risk, p.entry) + ' de risque');
+    tile('tp', 'TP1', p.tp1 ? price(p.tp1.price) : '—', p.tp1 ? '+' + p.rr1.toFixed(1) + ' R · ' + p.tp1.label : 'aucune cible');
+    tile('tp', 'TP2', p.tp2 ? price(p.tp2.price) : '—', p.tp2 ? '+' + p.rr2.toFixed(1) + ' R · ' + p.tp2.label : 'ratio < ' + Plan.MIN_RR + ' R');
     $('plan-conf').hidden = false;
     $('plan-conf-val').textContent = p.checks.filter(c => c.ok).length + ' / ' + p.checks.length;
     $('plan-conf-fill').style.width = p.confluence + '%';
     const ul = $('plan-checks'); ul.textContent = '';
     for (const c of p.checks) { const li = document.createElement('li'); li.textContent = c.text; if (!c.ok) li.className = 'no'; ul.appendChild(li); }
-    // Entrée, SL et TP sont dessinés sur le graphique par drawPosition (étiquettes façon TradingView).
+    const line = (pr, color, title, style) => planLines.push(candleSeries.createPriceLine({ price: pr, color, lineWidth: 2, lineStyle: style, axisLabelVisible: true, title }));
+    if (!view.clean) {
+    line(p.entry, '#c4962a', 'Entrée', 0);
+    line(p.stop, PAPER.sell, 'Stop', 2);
+    if (p.tp1) line(p.tp1.price, PAPER.buy, 'TP1', 2);
+    if (p.tp2) line(p.tp2.price, PAPER.buy, 'TP2', 2);
+    }
     narrative(txt, p);
     renderRisk(p);
   }
@@ -338,7 +299,8 @@
       const lotsTxt = z.lots.toLocaleString('fr-FR', { maximumFractionDigits: z.unit === 'lot' ? 2 : 4 }) + ' ' + z.unit + (z.unit === 'lot' && z.lots >= 2 ? 's' : '');
       tile('entry', 'Taille', lotsTxt, z.lots ? 'exposition ' + money(z.notional) + ' · levier ' + (z.notional / (cap || 1)).toFixed(1) + '×' : 'risque trop petit pour 1 lot minimum');
       tile('stop', 'Perte max', '−' + money(z.lossUsd), (z.lossUsd / (cap || 1) * 100).toFixed(2).replace('.', ',') + ' % du capital');
-      planLevels(p).tps.forEach((v, i) => tile('tp', 'Gain TP' + (i + 1), '+' + money((v - p.entry) * p.dir * z.lots * z.per), '+' + (i + 1) + ' R'));
+      tile('tp', 'Gain TP1', p.tp1 ? '+' + money((p.tp1.price - p.entry) * p.dir * z.lots * z.per) : '—', p.tp1 ? '+' + p.rr1.toFixed(1) + ' R' : '');
+      tile('tp', 'Gain TP2', p.tp2 ? '+' + money((p.tp2.price - p.entry) * p.dir * z.lots * z.per) : '—', p.tp2 ? '+' + p.rr2.toFixed(1) + ' R' : '');
       const atr4 = state.frames['4h'] ? state.frames['4h'].smc.atr : null;
       const body = $('stress'); body.textContent = '';
       for (const s of Risk.stress(z, p, atr4)) {
@@ -350,8 +312,7 @@
       // Résumé en 3 phrases, comme un assistant qui explique simplement.
       const cb = cotBias(), buy = p.dir > 0, tp = p.tp2 || p.tp1;
       const s1 = state.sym + ' : biais ' + (buy ? 'acheteur' : 'vendeur') + ' sur le 4h et le 1h' + (cb == null ? '.' : Math.sign(cb) === p.dir ? ', et les institutions vont dans le même sens.' : ', mais les institutions sont de l\'autre côté : prudence.');
-      const T = planLevels(p).tps;
-      const s2 = (buy ? 'Achat' : 'Vente') + ' à ' + price(p.entry) + ' sur l\'order block ' + p.tf + ', SL ' + price(p.stop) + ' (−' + pips(p.risk) + ' pips), TP1 ' + price(T[0]) + ', TP2 ' + price(T[1]) + ', TP3 ' + price(T[2]) + '. Passe le stop à l\'entrée (BE) quand le TP1 est touché.';
+      const s2 = (buy ? 'Achat' : 'Vente') + ' à ' + price(p.entry) + ' sur l\'order block ' + p.tf + ', stop ' + price(p.stop) + (tp ? ', objectif ' + price(tp.price) + ' (' + (p.tp2 ? p.rr2 : p.rr1).toFixed(1) + ' R).' : '.');
       const s3 = 'Avec ' + money(cap) + ' et ' + String(pct).replace('.', ',') + ' % de risque : ' + lotsTxt + ', perte maximale ' + money(z.lossUsd) + '. Le scénario tombe si une bougie ' + p.tf + ' clôture ' + (buy ? 'sous ' : 'au-dessus de ') + price(buy ? p.ob.bottom : p.ob.top) + '.';
       brief.textContent = 'En bref. ' + s1 + ' ' + s2 + ' ' + s3;
     }
@@ -415,9 +376,8 @@
       const buy = p.dir > 0;
       let t = (buy ? 'Achat' : 'Vente') + (p.atMarket ? ' : le prix est déjà dans' : ' sur le retour dans') + ' l\'order block ' + p.tf + ' ' + price(p.ob.bottom) + ' – ' + price(p.ob.top) + ' (note ' + p.ob.quality + '/100 : ' + p.ob.why.join(', ') + '). ';
       t += 'Stop ' + (buy ? 'sous ' : 'au-dessus de ') + price(p.stop) + '. ';
-      const T = planLevels(p).tps;
-      t += 'TP1 ' + price(T[0]) + ', TP2 ' + price(T[1]) + ', TP3 ' + price(T[2]) + ' (1, 2 et 3 R)';
-      if (p.tp2) t += '. Liquidité visée plus loin : ' + p.tp2.label + ' à ' + price(p.tp2.price);
+      if (p.tp1) t += 'TP1 sur ' + p.tp1.label + ' (' + p.rr1.toFixed(1) + ' R)';
+      if (p.tp2 && p.tp2 !== p.tp1) t += ', TP2 sur ' + p.tp2.label + ' (' + p.rr2.toFixed(1) + ' R)';
       t += '.';
       if (p.status === 'weak') t += ' Le ratio est inférieur à ' + Plan.MIN_RR + ' R : setup à éviter ou à réduire.';
       para(box, '<b>Scénario.</b> ' + esc(t));
