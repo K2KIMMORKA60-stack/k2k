@@ -21,7 +21,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=29">
+<link rel="stylesheet" href="style.css?v=30">
 </head>
 <body>
 <header class="top">
@@ -30,6 +30,7 @@
     <button type="button" data-mode="scan" aria-pressed="true">Scanner</button>
     <button type="button" data-mode="touched" aria-pressed="false">OB Touchés</button>
     <button type="button" data-mode="reaction" aria-pressed="false">Réaction</button>
+    <a href="#/journal" id="journal-link" aria-current="false">Journal</a>
   </nav>
   <button class="claude-btn" id="ask-claude" type="button">Demander à Claude</button>
 </header>
@@ -231,15 +232,43 @@
   <p class="disclaimer">Aide à la décision, pas un conseil financier. Les banques ne publient pas leurs ordres : K2K lit des traces, qui peuvent se tromper.</p>
 </main>
 
+<section class="journal" id="journal" hidden>
+  <div class="j-head">
+    <h1>Journal de trading</h1>
+    <button class="btn" id="j-add" type="button">+ Ajouter un trade</button>
+  </div>
+  <div class="j-stats" id="j-stats"></div>
+  <form class="panel j-form" id="j-form" hidden autocomplete="off">
+    <h2 id="j-form-title">Nouveau trade</h2>
+    <div class="j-grid">
+      <label>Date et heure<input name="date" type="datetime-local" required></label>
+      <label>Marché<input name="sym" list="j-sym-list" required></label>
+      <label>Sens<select name="dir"><option value="1">Achat</option><option value="-1">Vente</option></select></label>
+      <label>Lot<input name="lot" inputmode="decimal" placeholder="0,02" required></label>
+      <label>Entrée<input name="entry" inputmode="decimal" required></label>
+      <label>Stop<input name="sl" inputmode="decimal"></label>
+      <label>Objectif<input name="tp" inputmode="decimal"></label>
+      <label>Sortie<input name="exit" inputmode="decimal" placeholder="vide si en cours"></label>
+    </div>
+    <label>Note<textarea name="note" rows="2" placeholder="Ce qui s'est passé, ce que tu retiens"></textarea></label>
+    <datalist id="j-sym-list"></datalist>
+    <p class="source" id="j-error" hidden>Remplis au moins la date, le marché, le lot et l'entrée.</p>
+    <div class="j-actions"><button class="btn j-save" type="submit">Enregistrer</button><button class="btn" id="j-cancel" type="button">Annuler</button></div>
+  </form>
+  <ol class="j-list" id="j-list"></ol>
+  <p class="disclaimer">Le journal reste sur cet appareil. Résultat calculé avec les tailles de lot standard MT5 (or : 100 onces, BTC : 1 BTC, NAS100 : 1 $ le point).</p>
+</section>
+
 <script src="vendor/lightweight-charts.standalone.production.js"></script>
-<script src="smc.js?v=29"></script>
-<script src="zones.js?v=29"></script>
-<script src="cot.js?v=29"></script>
-<script src="data.js?v=29"></script>
-<script src="plan.js?v=29"></script>
-<script src="risk.js?v=29"></script>
-<script src="analysis.js?v=29"></script>
-<script src="app.js?v=29"></script>
-<script src="scanner.js?v=29"></script>
+<script src="smc.js?v=30"></script>
+<script src="zones.js?v=30"></script>
+<script src="cot.js?v=30"></script>
+<script src="data.js?v=30"></script>
+<script src="plan.js?v=30"></script>
+<script src="risk.js?v=30"></script>
+<script src="analysis.js?v=30"></script>
+<script src="app.js?v=30"></script>
+<script src="journal.js?v=30"></script>
+<script src="scanner.js?v=30"></script>
 </body>
 </html>
