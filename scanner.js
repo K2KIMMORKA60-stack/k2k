@@ -259,10 +259,18 @@
   function route() {
     const m = location.hash.match(/^#\/([A-Z0-9]+)\/(\w+)$/);
     const known = m && Prices.UNIVERSE.some(u => u.sym === m[1]);
-    $('home').hidden = !!known;
+    const journal = location.hash === '#/journal';
+    $('home').hidden = !!known || journal;
     $('detail').hidden = !known;
-    document.querySelectorAll('.modes button').forEach(b => b.setAttribute('aria-pressed', String(!known && b.dataset.mode === ui.mode)));
-    if (known) {
+    $('journal').hidden = !journal;
+    document.querySelectorAll('.modes button').forEach(b => b.setAttribute('aria-pressed', String(!known && !journal && b.dataset.mode === ui.mode)));
+    $('journal-link').setAttribute('aria-current', journal ? 'page' : 'false');
+    if (journal) {
+      disconnect();
+      K2K.close();
+      window.scrollTo(0, 0);
+      Journal.render();
+    } else if (known) {
       disconnect();
       clearCharts();
       window.scrollTo(0, 0);
@@ -291,5 +299,6 @@
   }
   $('ask-claude').addEventListener('click', () => Zones.askClaude($('detail').hidden ? homeSummary() : K2K.summary()));
 
+  Journal.init();
   route();
 })();
