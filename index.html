@@ -21,7 +21,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=29">
 </head>
 <body>
 <header class="top">
@@ -150,6 +150,11 @@
     <div class="analysis" id="plan-text"></div>
   </section>
 
+  <section class="panel report" id="report" hidden>
+    <div class="panel-head"><h2>Analyse SMC complète</h2><span class="source" id="report-tf"></span></div>
+    <div class="analysis" id="report-body"></div>
+  </section>
+
   <section class="panel risk" id="risk-panel">
     <div class="panel-head"><h2>Gestion du risque</h2><span class="source" id="risk-spec"></span></div>
     <div class="risk-inputs">
@@ -227,13 +232,14 @@
 </main>
 
 <script src="vendor/lightweight-charts.standalone.production.js"></script>
-<script src="smc.js?v=28"></script>
-<script src="zones.js?v=28"></script>
-<script src="cot.js?v=28"></script>
-<script src="data.js?v=28"></script>
-<script src="plan.js?v=28"></script>
-<script src="risk.js?v=28"></script>
-<script src="app.js?v=28"></script>
-<script src="scanner.js?v=28"></script>
+<script src="smc.js?v=29"></script>
+<script src="zones.js?v=29"></script>
+<script src="cot.js?v=29"></script>
+<script src="data.js?v=29"></script>
+<script src="plan.js?v=29"></script>
+<script src="risk.js?v=29"></script>
+<script src="analysis.js?v=29"></script>
+<script src="app.js?v=29"></script>
+<script src="scanner.js?v=29"></script>
 </body>
 </html>

@@ -286,3 +286,11 @@ h3 { font: 700 13px var(--display); letter-spacing: 0.02em; margin: 6px 0 6px; c
 .tv-mini { position: absolute; top: 8px; right: 70px; z-index: 3; font-size: 11px; padding: 5px 8px; opacity: 0.92; }
 @media (max-width: 520px) { .tv-mini { right: 62px; } }
 .ob-gray { background: rgba(170,170,170,0.7); }
+.report h3 { margin: 10px 0 2px; font-size: 14px; }
+.report h3:first-child { margin-top: 0; }
+.report p { margin: 0; }
+.report .table-wrap { margin: 2px 0; }
+.report .cot td { white-space: normal; }
+.scen { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.path { margin: 2px 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 12.5px; display: flex; flex-direction: column; align-items: flex-start; }
+.path li + li::before { content: '↓'; display: block; color: var(--muted); padding-left: 1.2em; }

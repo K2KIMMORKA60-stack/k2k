@@ -221,9 +221,19 @@
   let planLines = [];
   function cotBias() { const d = state.cot[state.sym]; return d && d.summary ? d.summary.bias : null; }
 
+  // Rapport SMC rédigé (structure, liquidité, scénarios, niveaux, confiance) pour l'unité affichée.
+  function renderReport() {
+    const html = state.frames[state.tf] ? Analysis.build({ sym: state.sym, tf: state.tf, frames: state.frames, plan: state.plan, cotBias: cotBias(), price: v => price(v), when, zones: (f, n) => Zones.nearest(f, n, 1) }) : '';
+    state.report = html;
+    $('report').hidden = !html;
+    $('report-body').innerHTML = html + '<p class="source">Aide à la décision, pas un conseil financier. Gère toujours ton risque.</p>';
+    $('report-tf').textContent = state.sym + ' · ' + state.tf;
+  }
+
   function renderPlan() {
     const p = Plan.build(state.frames, cotBias());
     state.plan = p;
+    renderReport();
     requestAnimationFrame(drawZones);
     const pill = $('plan-pill'), lv = $('plan-levels'), txt = $('plan-text');
     lv.textContent = ''; txt.textContent = '';
@@ -764,6 +774,7 @@
       const p = state.plan;
       if (p && p.status !== 'wait') lines.push('Plan K2K : ' + (p.dir > 0 ? 'achat' : 'vente') + ' entrée ' + price(p.entry) + ', stop ' + price(p.stop) + (p.tp1 ? ', TP1 ' + price(p.tp1.price) : '') + (p.tp2 ? ', TP2 ' + price(p.tp2.price) : '') + ', confluences ' + p.confluence + ' %.');
       else if (p) lines.push('Plan K2K : pas de setup (' + p.reason + ')');
+      if (state.report) lines.push('Rapport SMC K2K :\n' + Analysis.text(state.report));
       lines.push('En tant qu\'analyste SMC, que penses-tu de ce plan ? Points forts, risques, et ce que tu attendrais avant d\'entrer.');
       return lines.join('\n');
     },
