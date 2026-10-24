@@ -157,7 +157,7 @@ main > .disclaimer { text-align: center; margin-inline: auto; }
 .ob-bear { background: #f6cdbf; border: 1px solid #d98c78; }
 
 /* Plan de trade : quatre niveaux lisibles d'un coup d'œil, puis les confluences et l'analyse rédigée. */
-.levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
 .level { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .level .k { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .level .v { font: 600 16px var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
