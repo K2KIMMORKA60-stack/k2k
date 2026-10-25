@@ -127,7 +127,22 @@
     if (brk) lv.push([(brk.top + brk.bottom) / 2, 'Breaker block', 4]);
     lv.push([last, 'Prix actuel', 0]);
     lv.sort((a, b) => b[0] - a[0]);
-    table(['Niveau', 'Type', 'Rôle', 'Importance'], lv.map(r => [esc(P(r[0])), r[2] ? esc(r[1]) : '<b>' + esc(r[1]) + '</b>', r[2] ? (r[0] > last ? 'Résistance' : 'Support') : '—', r[2] ? stars(r[2]) : '—']));
+    // Chance que le niveau donne une vente (colonne baissière) ou un achat (colonne haussière), en étoiles.
+    // Au-dessus du prix, un niveau sert surtout de rejet vendeur ; en dessous, de rebond acheteur.
+    // Le sens du scénario principal renforce la réaction qui va avec lui, ou la cassure qui le prolonge.
+    const odds = (lvl, imp) => {
+      const side = lvl > last ? -1 : 1;
+      const react = Math.max(1, Math.min(5, Math.round((imp + (mainDir === side ? 5 : 2)) / 2)));
+      const brk = Math.max(1, Math.min(5, Math.round((6 - imp) / 2 + (mainDir === -side ? 2 : 0))));
+      return side < 0 ? { sell: react, buy: brk } : { sell: brk, buy: react };
+    };
+    const col = (n, cls) => '<span class="' + cls + '">' + stars(n) + '</span>';
+    table(['Niveau', 'Type', 'Rôle', 'Importance', 'Baissière', 'Haussière'], lv.map(r => {
+      if (!r[2]) return [esc(P(r[0])), '<b>' + esc(r[1]) + '</b>', '—', '—', '<span class="odds-sell">' + (buy ? 100 - prob : prob) + ' %</span>', '<span class="odds-buy">' + (buy ? prob : 100 - prob) + ' %</span>'];
+      const o = odds(r[0], r[2]);
+      return [esc(P(r[0])), esc(r[1]), r[0] > last ? 'Résistance' : 'Support', stars(r[2]), col(o.sell, 'odds-sell'), col(o.buy, 'odds-buy')];
+    }));
+    p('<span class="source">Baissière : chance que le niveau donne une vente (rejet ou cassure vers le bas). Haussière : chance d\'un achat. Sur la ligne du prix actuel : probabilité des deux scénarios.</span>');
     if (inv != null) p('<b>Invalidation du scénario ' + (buy ? 'haussier' : 'baissier') + ' :</b> ' + esc('clôture ' + (pl ? pl.tf : ctx.tf) + ' ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) + ' avec élan.'));
 
     // 7. Conclusion

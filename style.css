@@ -328,3 +328,5 @@ h3 { font: 700 13px var(--display); letter-spacing: 0.02em; margin: 6px 0 6px; c
   .modes a { padding: 6px 7px; font-size: 13px; }
   .j-stats, .j-grid, .j-levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.odds-sell { color: var(--bear); white-space: nowrap; }
+.odds-buy { color: var(--bull); white-space: nowrap; }
