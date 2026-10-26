@@ -33,6 +33,30 @@
     throw lastErr;
   }
 
+  // Historique long (plusieurs pages de 1 000 bougies) pour mesurer les taux de réussite passés.
+  async function fetchHistory(symbol, interval, total) {
+    const pair = LIVE[symbol];
+    if (!pair) return null;
+    let out = [], end = null;
+    while (out.length < (total || 3000)) {
+      let rows = null, lastErr;
+      for (const h of HOSTS) {
+        try {
+          const res = await fetch(h + '/api/v3/klines?symbol=' + pair + '&interval=' + interval + '&limit=1000' + (end ? '&endTime=' + end : ''));
+          if (!res.ok) throw new Error('Binance a répondu ' + res.status);
+          rows = await res.json();
+          break;
+        } catch (e) { lastErr = e; }
+      }
+      if (!rows) throw lastErr;
+      if (!rows.length) break;
+      out = rows.map(r => ({ time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] })).concat(out);
+      end = rows[0][0] - 1;
+      if (rows.length < 1000) break;
+    }
+    return out;
+  }
+
   // Lit un export TradingView (time,open,high,low,close,Volume) ou MT5 (<DATE> <TIME> <OPEN> … <TICKVOL>).
   function parseCsv(text) {
     const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
@@ -72,6 +96,6 @@
   const TV_TF = { '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
   const tvUrl = (sym, tf) => 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(TV[sym] || sym) + '&interval=' + (TV_TF[tf] || '60');
 
-  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, parseCsv };
+  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, fetchHistory, parseCsv };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Prices = api;
 })(typeof self !== 'undefined' ? self : this);

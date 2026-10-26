@@ -95,54 +95,62 @@
     // 5. Scénarios
     const pl = ctx.plan && ctx.plan.status !== 'wait' ? ctx.plan : null;
     const mainDir = pl ? pl.dir : bias || htfDir || 1;
-    let prob = 55;
-    if (htfDir === mainDir) prob += 10;
-    if (ctx.cotBias != null && Math.sign(ctx.cotBias) === mainDir) prob += 5;
-    if (sw && sw.dir === mainDir) prob += 5;
-    if (pl && pl.confluence >= 60) prob += 5;
-    prob = Math.min(80, prob);
     const buy = mainDir > 0;
     const targets = (buy ? above : below).slice(0, 2);
     const poi = (buy ? demand : supply)[0];
-    h3('Scénario principal · ' + (buy ? 'haussier' : 'baissier') + ' (' + prob + ' %)');
     const trig = pl ? (pl.atMarket ? 'prix déjà dans l\'OB ' + pl.tf + ' ' + P(pl.ob.bottom) + ' – ' + P(pl.ob.top) + ' : chercher une confirmation (CHoCH en petite unité)' : 'retour dans l\'OB ' + pl.tf + ' ' + P(pl.ob.bottom) + ' – ' + P(pl.ob.top))
       : poi ? 'réaction dans la zone ' + P(poi.bottom) + ' – ' + P(poi.top) + ' puis CHoCH en petite unité' : 'cassure de structure (BOS) ' + (buy ? 'au-dessus du dernier sommet' : 'sous le dernier creux');
     const tgt = pl && pl.tp1 ? [pl.tp1.price].concat(pl.tp2 && pl.tp2 !== pl.tp1 ? [pl.tp2.price] : []) : targets.map(t => t.level);
     const inv = pl ? (buy ? pl.ob.bottom : pl.ob.top) : poi ? (buy ? poi.bottom : poi.top) : null;
+    // Probabilité mesurée : sur l'historique réel de cette unité, retours dans un order block du même sens
+    // (avec ou contre la structure), cible au même ratio gain / risque, touchée avant la clôture d'invalidation.
+    const st = ctx.stats, MIN = (root.Stats && root.Stats.MIN_CASES) || 30;
+    const entryLvl = pl ? pl.entry : poi ? (buy ? poi.top : poi.bottom) : null;
+    const R = tgt.length && inv != null && entryLvl != null && entryLvl !== inv ? Math.min(10, Math.max(0.3, Math.abs(tgt[0] - entryLvl) / Math.abs(entryLvl - inv))) : null;
+    const m = st && R ? st.scenario(mainDir, bias === mainDir, R) : null;
+    const tag = v => st === undefined ? 'mesure en cours…' : !st || !m ? 'non mesurable' : m.pct == null ? 'pas assez de données' : v + ' % mesuré';
+    h3('Scénario principal · ' + (buy ? 'haussier' : 'baissier') + ' (' + tag(m && m.pct) + ')');
+    if (st && m) p('<span class="source">' + esc(m.pct == null
+      ? 'Seulement ' + m.n + ' cas comparables dans l\'historique ' + ctx.tf + ' (il en faut ' + MIN + ') : pas de chiffre plutôt qu\'un chiffre inventé.'
+      : 'Sur les ' + m.n + ' dernières fois où le prix est revenu dans un order block ' + (buy ? 'haussier' : 'baissier') + ' en ' + ctx.tf + (bias === mainDir ? ' dans le sens de la structure' : ' contre la structure') + ', la cible 1 (à ' + R.toFixed(1).replace('.', ',') + ' fois le risque) a été touchée avant l\'invalidation dans ' + m.pct + ' % des cas. Historique réel depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '.') + '</span>');
     const path = ['Prix actuel ' + P(last), trig.charAt(0).toUpperCase() + trig.slice(1), (buy ? 'Rejet haussier' : 'Rejet baissier') + ' et confirmation'].concat(tgt.map((t, k) => 'Cible ' + (k + 1) + ' : ' + P(t)));
     out.push('<ol class="path">' + path.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>');
     out.push('<ul class="scen">' + (inv != null ? '<li><b>Invalidation :</b> ' + esc('clôture ' + (pl ? pl.tf : ctx.tf) + ' ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv)) + '</li>' : '')
       + '<li><b>Logique :</b> ' + esc('structure ' + (bias > 0 ? 'haussière' : bias < 0 ? 'baissière' : 'neutre') + (ev ? ', dernier ' + ev.type + (ev.dir > 0 ? ' haussier' : ' baissier') : '') + (sw ? ', ' + (sw.dir > 0 ? 'SSL' : 'BSL') + ' balayée' : '') + (htfDir === mainDir ? ', unités supérieures dans le même sens' : '') + '.') + '</li></ul>');
     const altT = (buy ? below : above).find(l => inv == null || (buy ? l.level < inv : l.level > inv));
-    h3('Scénario alternatif · ' + (buy ? 'baissier' : 'haussier') + ' (' + (100 - prob) + ' %)');
+    h3('Scénario alternatif · ' + (buy ? 'baissier' : 'haussier') + ' (' + tag(m && m.pct != null ? 100 - m.pct : null) + ')');
     const altPath = [(inv != null ? 'Clôture ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) : 'Cassure dans l\'autre sens'), 'CHoCH ' + (buy ? 'baissier' : 'haussier') + ' en ' + ctx.tf].concat(altT ? ['Retour vers ' + P(altT.level) + ' (' + altT.name + ')'] : []);
     out.push('<ol class="path">' + altPath.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>');
     p(esc('Si ' + (inv != null ? 'le prix clôture ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) : 'la structure casse dans l\'autre sens') + ', le marché peut aller chercher ' + (altT ? 'la liquidité à ' + P(altT.level) + ' (' + altT.name + ')' : 'le prochain niveau ' + (buy ? 'en dessous' : 'au-dessus')) + '. On ne force pas : on attend une nouvelle structure.'));
 
     // 6. Niveaux à surveiller
     h3('Niveaux à surveiller');
-    const lv = above.slice(0, 3).map(l => [l.level, (l.name === 'sommet' ? 'Sommet' : l.name) + ' · BSL', l.imp])
-      .concat(below.slice(0, 3).map(l => [l.level, (l.name === 'creux' ? 'Creux' : l.name) + ' · SSL', l.imp]))
-      .concat(zs.slice(0, 3).map(o => [(o.top + o.bottom) / 2, (o.dir > 0 ? 'Demande' : 'Offre') + ' (OB)', o.stars || 1]));
-    if (brk) lv.push([(brk.top + brk.bottom) / 2, 'Breaker block', 4]);
+    const cat = l => (l.name === 'psychologique' ? 'psy' : 'swing');
+    const lv = above.slice(0, 3).map(l => [l.level, (l.name === 'sommet' ? 'Sommet' : l.name) + ' · BSL', l.imp, cat(l)])
+      .concat(below.slice(0, 3).map(l => [l.level, (l.name === 'creux' ? 'Creux' : l.name) + ' · SSL', l.imp, cat(l)]))
+      .concat(zs.slice(0, 3).map(o => [(o.top + o.bottom) / 2, (o.dir > 0 ? 'Demande' : 'Offre') + ' (OB)', o.stars || 1, 'ob']));
+    if (brk) lv.push([(brk.top + brk.bottom) / 2, 'Breaker block', 4, 'breaker']);
     lv.push([last, 'Prix actuel', 0]);
     lv.sort((a, b) => b[0] - a[0]);
-    // Chance que le niveau donne une vente (colonne baissière) ou un achat (colonne haussière), en étoiles.
-    // Au-dessus du prix, un niveau sert surtout de rejet vendeur ; en dessous, de rebond acheteur.
-    // Le sens du scénario principal renforce la réaction qui va avec lui, ou la cassure qui le prolonge.
-    const odds = (lvl, imp) => {
-      const side = lvl > last ? -1 : 1;
-      const react = Math.max(1, Math.min(5, Math.round((imp + (mainDir === side ? 5 : 2)) / 2)));
-      const brk = Math.max(1, Math.min(5, Math.round((6 - imp) / 2 + (mainDir === -side ? 2 : 0))));
-      return side < 0 ? { sell: react, buy: brk } : { sell: brk, buy: react };
-    };
-    const col = (n, cls) => '<span class="' + cls + '">' + stars(n) + '</span>';
+    // Colonnes Baissière / Haussière mesurées : à chaque contact passé avec ce type de niveau (même côté du prix),
+    // le prix est-il reparti d'une bougie moyenne dans le sens du rejet, ou a-t-il cassé le niveau ?
+    const cell = (v, cls) => '<span class="' + cls + '">' + stars(Math.round(v / 20)) + ' ' + v + ' %</span>';
+    const none = n => '<span class="source">pas assez (' + n + ')</span>';
     table(['Niveau', 'Type', 'Rôle', 'Importance', 'Baissière', 'Haussière'], lv.map(r => {
-      if (!r[2]) return [esc(P(r[0])), '<b>' + esc(r[1]) + '</b>', '—', '—', '<span class="odds-sell">' + (buy ? 100 - prob : prob) + ' %</span>', '<span class="odds-buy">' + (buy ? prob : 100 - prob) + ' %</span>'];
-      const o = odds(r[0], r[2]);
-      return [esc(P(r[0])), esc(r[1]), r[0] > last ? 'Résistance' : 'Support', stars(r[2]), col(o.sell, 'odds-sell'), col(o.buy, 'odds-buy')];
+      if (!r[2]) {
+        const ok = m && m.pct != null, up = ok ? (buy ? m.pct : 100 - m.pct) : null;
+        return [esc(P(r[0])), '<b>' + esc(r[1]) + '</b>', '—', '—', ok ? '<span class="odds-sell">' + (100 - up) + ' %</span>' : '—', ok ? '<span class="odds-buy">' + up + ' %</span>' : '—'];
+      }
+      const side = r[0] > last ? -1 : 1, q = st ? st.level(r[3], side) : null;
+      const head = [esc(P(r[0])), esc(r[1]), side < 0 ? 'Résistance' : 'Support', stars(r[2])];
+      if (!q) return head.concat(['…', '…']);
+      if (q.pct == null) return head.concat([none(q.n), none(q.n)]);
+      const sell = side < 0 ? q.pct : 100 - q.pct;
+      return head.concat([cell(sell, 'odds-sell'), cell(100 - sell, 'odds-buy')]);
     }));
-    p('<span class="source">Baissière : chance que le niveau donne une vente (rejet ou cassure vers le bas). Haussière : chance d\'un achat. Sur la ligne du prix actuel : probabilité des deux scénarios.</span>');
+    p('<span class="source">' + esc(st === null ? 'Historique trop court ou indisponible : pas de probabilité affichée plutôt qu\'un chiffre inventé.' : st
+      ? 'Baissière / Haussière : mesuré sur ' + st.bars + ' bougies réelles ' + ctx.tf + ' depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '. Pour chaque type de niveau, on a compté les contacts passés : le prix est-il reparti d\'une bougie moyenne vers le bas (vente) ou vers le haut (achat) ? Moins de ' + MIN + ' cas : pas de chiffre. Sur la ligne du prix : le scénario principal mesuré. Une statistique passée, pas une garantie.'
+      : 'Mesure sur l\'historique réel en cours…') + '</span>');
     if (inv != null) p('<b>Invalidation du scénario ' + (buy ? 'haussier' : 'baissier') + ' :</b> ' + esc('clôture ' + (pl ? pl.tf : ctx.tf) + ' ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) + ' avec élan.'));
 
     // 7. Conclusion

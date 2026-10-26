@@ -222,8 +222,17 @@
   function cotBias() { const d = state.cot[state.sym]; return d && d.summary ? d.summary.bias : null; }
 
   // Rapport SMC rédigé (structure, liquidité, scénarios, niveaux, confiance) pour l'unité affichée.
+  const statsAsked = {};
   function renderReport() {
-    const html = state.frames[state.tf] ? Analysis.build({ sym: state.sym, tf: state.tf, frames: state.frames, plan: state.plan, cotBias: cotBias(), price: v => price(v), when, zones: (f, n) => Zones.nearest(f, n, 1) }) : '';
+    const f = state.frames[state.tf], key = state.sym + state.tf;
+    const stats = Stats.get(state.sym, state.tf);
+    // Historique long chargé une fois par demi-heure, puis le rapport est réécrit avec les probabilités mesurées.
+    const slot = key + Math.floor(Date.now() / 1800000);
+    if (f && stats === undefined && !statsAsked[slot]) {
+      statsAsked[slot] = true;
+      Stats.load(state.sym, state.tf, f.candles).then(() => { if (state.sym + state.tf === key) renderReport(); });
+    }
+    const html = f ? Analysis.build({ sym: state.sym, tf: state.tf, frames: state.frames, plan: state.plan, cotBias: cotBias(), stats, price: v => price(v), when, zones: (f2, n) => Zones.nearest(f2, n, 1) }) : '';
     state.report = html;
     $('report').hidden = !html;
     $('report-body').innerHTML = html + '<p class="source">Aide à la décision, pas un conseil financier. Gère toujours ton risque.</p>';
