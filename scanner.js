@@ -155,7 +155,7 @@
     if (m.sym === 'XAUUSD' || m.sym === 'EURUSD') {
       const fr = Prices.factor(m.sym), rb = document.createElement('button');
       rb.type = 'button'; rb.className = 'badge recal-badge';
-      rb.textContent = fr === 1 ? 'Recaler sur TradingView' : 'Recalé ' + (fr > 1 ? '+' : '−') + Math.abs((fr - 1) * 100).toFixed(2).replace('.', ',') + ' %';
+      rb.textContent = fr === 1 ? 'Recaler sur TradingView' : (Prices.isAuto(m.sym) ? 'Recalé auto ' : 'Recalé ') + (fr > 1 ? '+' : '−') + Math.abs((fr - 1) * 100).toFixed(2).replace('.', ',') + ' %';
       rb.addEventListener('click', () => {
         const lastBar = f.candles[f.candles.length - 1], raw = lastBar.close / fr;
         const ans = prompt('Prix affiché en ce moment sur ton TradingView (OANDA) pour ' + m.sym + ' ?\nK2K affiche ' + Zones.fmtPrice(lastBar.close) + '.\nLaisse vide pour enlever le recalage.', '');

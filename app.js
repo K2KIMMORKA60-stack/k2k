@@ -3,7 +3,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const K2K_VERSION = 40;
+  const K2K_VERSION = 41;
   const css = getComputedStyle(document.documentElement);
   const C = name => css.getPropertyValue(name).trim();
   const COL = { bull: C('--bull'), bear: C('--bear'), gold: C('--gold'), warn: C('--warn'), muted: C('--muted'), line: C('--line'), fg: C('--fg'), surface: C('--surface') };
@@ -605,7 +605,7 @@
     state.frames = frames;
     if (!silent) connectLive();
     const rf = Prices.factor(sym);
-    $('chart-source').textContent = 'Binance ' + Prices.LIVE[sym] + (sym === 'XAUUSD' ? ' (jeton adossé à l\'or)' : '') + (rf !== 1 ? ' · recalé sur ton courtier (' + (rf > 1 ? '+' : '−') + Math.abs((rf - 1) * 100).toFixed(2).replace('.', ',') + ' %)' : '') + ' · version ' + K2K_VERSION + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    $('chart-source').textContent = 'Binance ' + Prices.LIVE[sym] + (sym === 'XAUUSD' ? ' (jeton adossé à l\'or)' : '') + (rf !== 1 ? (Prices.isAuto(sym) ? ' · recalé automatiquement sur OANDA, estimation (' : ' · recalé sur ton courtier (') + (rf > 1 ? '+' : '−') + Math.abs((rf - 1) * 100).toFixed(2).replace('.', ',') + ' %)' : '') + ' · version ' + K2K_VERSION + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     renderAll();
   }
 
@@ -751,7 +751,7 @@
   function showRecal() {
     recalBtn.hidden = !Prices.LIVE[state.sym] || !!state.imported[state.sym];
     const f = Prices.factor(state.sym);
-    recalBtn.textContent = f === 1 ? 'Recaler sur mon courtier' : 'Recalé (' + (f > 1 ? '+' : '−') + Math.abs((f - 1) * 100).toFixed(2).replace('.', ',') + ' %)';
+    recalBtn.textContent = f === 1 ? 'Recaler sur mon courtier' : (Prices.isAuto(state.sym) ? 'Recalé auto (' : 'Recalé (') + (f > 1 ? '+' : '−') + Math.abs((f - 1) * 100).toFixed(2).replace('.', ',') + ' %)';
     // Même bouton sous le graphique, là où l'on lit la source du prix.
     const under = $('chart-recal');
     under.hidden = recalBtn.hidden;

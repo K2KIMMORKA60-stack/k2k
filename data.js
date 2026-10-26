@@ -20,7 +20,12 @@
 
   // Recalage sur le prix du courtier : le PAXG (or) cote avec une petite prime sur l'or OANDA.
   // Le rapport « prix courtier / prix Binance » est gardé sur l'appareil et appliqué à toutes les bougies.
-  function factor(symbol) { try { const v = +localStorage.getItem('k2k.recal.' + symbol); return v > 0 ? v : 1; } catch (e) { return 1; } }
+  // Sans recalage manuel, l'or est recalé automatiquement sur l'écart habituel PAXG / OANDA XAUUSD
+  // (mesuré le 26/10/2026 : environ −0,30 %). Une estimation : quelques dollars près.
+  const AUTO = { XAUUSD: 0.997 };
+  function stored(symbol) { try { const v = +localStorage.getItem('k2k.recal.' + symbol); return v > 0 ? v : null; } catch (e) { return null; } }
+  function factor(symbol) { return stored(symbol) || AUTO[symbol] || 1; }
+  function isAuto(symbol) { return !stored(symbol) && !!AUTO[symbol]; }
   function setFactor(symbol, v) { try { if (v > 0 && v !== 1) localStorage.setItem('k2k.recal.' + symbol, String(v)); else localStorage.removeItem('k2k.recal.' + symbol); } catch (e) { /* stockage indisponible */ } }
   function scale(symbol, b) {
     const f = factor(symbol);
@@ -106,6 +111,6 @@
   const TV_TF = { '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
   const tvUrl = (sym, tf) => 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(TV[sym] || sym) + '&interval=' + (TV_TF[tf] || '60');
 
-  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, fetchHistory, parseCsv, factor, setFactor, scale };
+  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, fetchHistory, parseCsv, factor, isAuto, setFactor, scale };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Prices = api;
 })(typeof self !== 'undefined' ? self : this);
