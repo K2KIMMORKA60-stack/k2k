@@ -107,13 +107,22 @@
     const st = ctx.stats, MIN = (root.Stats && root.Stats.MIN_CASES) || 30;
     const entryLvl = pl ? pl.entry : poi ? (buy ? poi.top : poi.bottom) : null;
     const R = tgt.length && inv != null && entryLvl != null && entryLvl !== inv ? Math.min(10, Math.max(0.3, Math.abs(tgt[0] - entryLvl) / Math.abs(entryLvl - inv))) : null;
-    const m = st && R ? st.scenario(mainDir, bias === mainDir, R) : null;
+    // Cas précis : même situation ET même sens du 4h qu'aujourd'hui. Affiché dès qu'il a assez de cas.
+    const f4 = ctx.tf !== '4h' && ctx.frames['4h'] ? ctx.frames['4h'].smc : null;
+    const dir4 = f4 ? Math.sign(f4.trend || f4.score) : 0;
+    const mAll = st && R ? st.scenario(mainDir, bias === mainDir, R) : null;
+    const mHtf = st && R && st.hasHtf && dir4 ? st.scenario(mainDir, bias === mainDir, R, dir4) : null;
+    const precise = !!(mHtf && mHtf.pct != null);
+    const m = precise ? mHtf : mAll;
+    const w4 = dir4 ? ', avec le 4h ' + (dir4 > 0 ? 'haussier' : 'baissier') : '';
     const tag = v => st === undefined ? 'mesure en cours…' : !st || !m ? 'non mesurable' : m.pct == null ? 'pas assez de données' : v + ' % mesuré';
     h3('Scénario principal · ' + (buy ? 'haussier' : 'baissier') + ' (' + tag(m && m.pct) + ')');
     const num = (v, d) => v.toFixed(d).replace('.', ',');
     if (st && m) p('<span class="source">' + esc(m.pct == null
       ? 'Seulement ' + m.n + ' cas comparables dans l\'historique ' + ctx.tf + ' (il en faut ' + MIN + ') : pas de chiffre plutôt qu\'un chiffre inventé.'
-      : 'Sur les ' + m.n + ' dernières fois où le prix est revenu dans un order block ' + (buy ? 'haussier' : 'baissier') + ' en ' + ctx.tf + (bias === mainDir ? ' dans le sens de la structure' : ' contre la structure') + ', la cible 1 (à ' + num(R, 1) + ' fois le risque) a été touchée avant l\'invalidation dans ' + m.pct + ' % des cas, et l\'invalidation dans ' + (100 - m.pct) + ' %. Historique réel depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '.') + '</span>');
+      : 'Sur les ' + m.n + ' dernières fois où le prix est revenu dans un order block ' + (buy ? 'haussier' : 'baissier') + ' en ' + ctx.tf + (bias === mainDir ? ' dans le sens de la structure' : ' contre la structure') + (precise ? w4 : '') + ', la cible 1 (à ' + num(R, 1) + ' fois le risque) a été touchée avant l\'invalidation dans ' + m.pct + ' % des cas, et l\'invalidation dans ' + (100 - m.pct) + ' %. Historique réel depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '.'
+        + (precise && mAll && mAll.pct != null ? ' Tous cas confondus (sans regarder le 4h) : ' + mAll.pct + ' % sur ' + mAll.n + ' cas.' : '')
+        + (!precise && mHtf ? ' Cas précis' + w4 + ' : seulement ' + mHtf.n + ' cas, pas assez pour un chiffre ; chiffre général affiché.' : '')) + '</span>');
     // Seuil de rentabilité, avantage moyen et marge d'erreur : pour lire correctement le pourcentage.
     // Le spread est payé à chaque trade : il réduit le gain et augmente la perte, donc il remonte le seuil.
     const cost = R && ctx.spread > 0 ? ctx.spread / Math.abs(entryLvl - inv) : 0;
@@ -133,7 +142,7 @@
     // avant que le prix ne reclôture dans la zone ?
     const h = entryLvl != null && inv != null ? Math.abs(entryLvl - inv) : 0;
     const Ralt = altT && h ? Math.min(10, Math.max(0.5, Math.abs(altT.level - inv) / h)) : null;
-    const ma = st && R && Ralt ? st.alternative(mainDir, bias === mainDir, R, Ralt) : null;
+    const ma = st && R && Ralt ? st.alternative(mainDir, bias === mainDir, R, Ralt, precise ? dir4 : null) : null;
     const tagAlt = st === undefined ? 'mesure en cours…' : !st || !ma ? 'non mesurable' : ma.pct == null ? 'pas assez de données' : ma.pct + ' % mesuré après invalidation';
     h3('Scénario alternatif · ' + (buy ? 'baissier' : 'haussier') + ' (' + tagAlt + ')');
     const altPath = [(inv != null ? 'Clôture ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) : 'Cassure dans l\'autre sens'), 'CHoCH ' + (buy ? 'baissier' : 'haussier') + ' en ' + ctx.tf].concat(altT ? ['Retour vers ' + P(altT.level) + ' (' + altT.name + ')'] : []);
@@ -179,7 +188,11 @@
     // marge d'erreur au-dessus du seuil (2 pts), alignement du 4h et du 1h avec le scénario (2 pts).
     h3('Conclusion');
     const concl = esc('Biais ' + (buy ? 'haussier' : 'baissier') + ' tant que ' + (inv != null ? P(inv) + ' tient' : 'la structure tient') + '. ' + (pl ? 'Plan K2K : ' + (buy ? 'achat' : 'vente') + ' à ' + P(pl.entry) + ', stop ' + P(pl.stop) + '.' : 'Pas d\'entrée propre pour l\'instant : patience.'));
-    if (m && m.pct != null) {
+    // Pas de note quand K2K dit lui-même « pas de setup » ou « prudence » : sinon le chiffre contredit l'analyse.
+    const noNote = !pl ? 'pas de setup' : ctx.disagree ? 'désaccord entre institutions et graphique, prudence' : dir4 && dir4 !== mainDir ? 'le 4h est ' + (dir4 > 0 ? 'haussier' : 'baissier') + ', contre ce scénario : prudence' : null;
+    if (noNote) {
+      p(concl + ' <b>Confiance globale : pas de note</b>' + esc(' (' + noNote + '. ' + (m && m.pct != null ? 'La mesure ci-dessus reste une information, pas un signal d\'entrée.' : '') + ')').replace(' )', ')').replace('. )', '.)'));
+    } else if (m && m.pct != null) {
       const be = beRaw;
       const edge = 2 + 2 * Math.max(-1, Math.min(1, (m.pct - be) / 20));
       const size = m.n >= 100 ? 2 : m.n >= 50 ? 1.5 : 1;

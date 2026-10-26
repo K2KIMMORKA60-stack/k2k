@@ -223,6 +223,8 @@
 
   // Rapport SMC rédigé (structure, liquidité, scénarios, niveaux, confiance) pour l'unité affichée.
   const statsAsked = {};
+  // Même règle que le verdict « Désaccord : prudence » : institutions et graphique nettement opposés.
+  function disagree() { const cb = cotBias(), sb = mtfScore(); return cb != null && sb != null && Math.sign(cb) !== Math.sign(sb) && Math.abs(cb) >= 15 && Math.abs(sb) >= 15; }
   function renderReport() {
     const f = state.frames[state.tf], key = state.sym + state.tf;
     const stats = Stats.get(state.sym, state.tf);
@@ -232,7 +234,7 @@
       statsAsked[slot] = true;
       Stats.load(state.sym, state.tf, f.candles).then(() => { if (state.sym + state.tf === key) renderReport(); });
     }
-    const html = f ? Analysis.build({ sym: state.sym, tf: state.tf, frames: state.frames, plan: state.plan, cotBias: cotBias(), stats, spread: spread(), price: v => price(v), when, zones: (f2, n) => Zones.nearest(f2, n, 1) }) : '';
+    const html = f ? Analysis.build({ sym: state.sym, tf: state.tf, frames: state.frames, plan: state.plan, cotBias: cotBias(), stats, spread: spread(), disagree: disagree(), price: v => price(v), when, zones: (f2, n) => Zones.nearest(f2, n, 1) }) : '';
     state.report = html;
     $('report').hidden = !html;
     $('report-body').innerHTML = html + '<p class="source">Aide à la décision, pas un conseil financier. Gère toujours ton risque.</p>';

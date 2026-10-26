@@ -24,9 +24,23 @@
   // Pas du chiffre rond : 1 000 sur BTC, 100 sur l'or, 0,01 sur l'EURUSD.
   function roundStep(x) { const e = Math.floor(Math.log10(x)); return Math.pow(10, x < 10 ? e - 2 : e - 1); }
 
-  function build(c, S) {
+  // Sens de la structure 4h connu à un instant donné : seulement les bougies 4h déjà clôturées.
+  function htfTrend(h, S) {
+    if (!h || h.length < 50) return null;
+    const ev = S.structure(h, S.swings(h, 3)).events;
+    const tr = new Int8Array(h.length);
+    for (let i = 0, t = 0, e = 0; i < h.length; i++) { while (e < ev.length && ev[e].i <= i) t = ev[e++].dir; tr[i] = t; }
+    return time => {
+      let lo = 0, hi = h.length - 1, k = -1;
+      while (lo <= hi) { const mid = (lo + hi) >> 1; if (h[mid].time + 14400 <= time) { k = mid; lo = mid + 1; } else hi = mid - 1; }
+      return k < 0 ? null : tr[k];
+    };
+  }
+
+  function build(c, S, h4) {
     S = S || root.SMC;
     if (!c || c.length < 200) return null;
+    const at4h = htfTrend(h4, S);
     const sw = S.swings(c, 3);
     const st = S.structure(c, sw);
     const atr = atrSeries(c);
@@ -91,7 +105,7 @@
       const entry = ob.dir > 0 ? ob.top : ob.bottom, inv = ob.dir > 0 ? ob.bottom : ob.top;
       for (let k = ev.i + 1; k < c.length; k++) {
         if (ob.dir > 0 ? c[k].low <= ob.top : c[k].high >= ob.bottom) {
-          if (entry !== inv) setups.push({ dir: ob.dir, k, entry, inv, aligned: trend[k - 1] === ob.dir });
+          if (entry !== inv) setups.push({ dir: ob.dir, k, entry, inv, aligned: trend[k - 1] === ob.dir, htf: at4h ? at4h(c[k].time) : null });
           const r = resolveZone(k, entry, inv, ob.dir);
           if (r.v != null) record('ob:' + ob.dir, r.v);
           break;
@@ -131,10 +145,12 @@
     return {
       bars: c.length, from: c[0].time,
       // Retour dans un order block : la cible (à R fois le risque) est-elle touchée avant une clôture au-delà de la zone ?
-      scenario(dir, aligned, R) {
+      hasHtf: !!at4h,
+      // htf (facultatif) : sens du 4h au moment du retour (1 haussier, -1 baissier) pour mesurer le cas précis.
+      scenario(dir, aligned, R, htf) {
         let n = 0, w = 0;
         for (const s of setups) {
-          if (s.dir !== dir || s.aligned !== aligned) continue;
+          if (s.dir !== dir || s.aligned !== aligned || (htf != null && s.htf !== htf)) continue;
           const o = outcome(s, R);
           if (o) { n++; w += o.v; }
         }
@@ -142,10 +158,10 @@
       },
       // Scénario alternatif, mesuré à part : après la clôture d'invalidation, le prix atteint-il la cible opposée
       // (Ralt fois la hauteur de la zone, depuis le bord cassé) avant de reclôturer dans la zone ?
-      alternative(dir, aligned, R, Ralt) {
+      alternative(dir, aligned, R, Ralt, htf) {
         let n = 0, w = 0;
         for (const s of setups) {
-          if (s.dir !== dir || s.aligned !== aligned) continue;
+          if (s.dir !== dir || s.aligned !== aligned || (htf != null && s.htf !== htf)) continue;
           const o = outcome(s, R);
           if (!o || o.v) continue;
           const tgt = s.inv - dir * Ralt * Math.abs(s.entry - s.inv);
@@ -168,9 +184,11 @@
   function load(sym, tf, fallback) {
     const key = sym + tf, e = cache[key];
     if (e && (e.pending || Date.now() - e.at < 30 * 60000)) return e.pending || Promise.resolve(e.data);
-    const p = (root.Prices.LIVE[sym] ? root.Prices.fetchHistory(sym, tf, HISTORY[tf] || 3000) : Promise.resolve(fallback))
-      .catch(() => fallback)
-      .then(c => { const data = build(c); cache[key] = { at: Date.now(), data }; return data; });
+    const live = !!root.Prices.LIVE[sym];
+    const main = (live ? root.Prices.fetchHistory(sym, tf, HISTORY[tf] || 3000) : Promise.resolve(fallback)).catch(() => fallback);
+    // Le 4h sert à mesurer le cas précis (par exemple OB haussier en 1h quand le 4h est baissier).
+    const h4 = live && tf !== '4h' ? root.Prices.fetchHistory(sym, '4h', HISTORY['4h']).catch(() => null) : Promise.resolve(null);
+    const p = Promise.all([main, h4]).then(([c, h]) => { const data = build(c, null, h); cache[key] = { at: Date.now(), data }; return data; });
     cache[key] = { at: 0, pending: p };
     return p;
   }
