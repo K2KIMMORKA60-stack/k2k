@@ -3,6 +3,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
+  const K2K_VERSION = 39;
   const css = getComputedStyle(document.documentElement);
   const C = name => css.getPropertyValue(name).trim();
   const COL = { bull: C('--bull'), bear: C('--bear'), gold: C('--gold'), warn: C('--warn'), muted: C('--muted'), line: C('--line'), fg: C('--fg'), surface: C('--surface') };
@@ -603,7 +604,8 @@
     }
     state.frames = frames;
     if (!silent) connectLive();
-    $('chart-source').textContent = 'Binance ' + Prices.LIVE[sym] + (sym === 'XAUUSD' ? ' (jeton adossé à l\'or)' : '') + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const rf = Prices.factor(sym);
+    $('chart-source').textContent = 'Binance ' + Prices.LIVE[sym] + (sym === 'XAUUSD' ? ' (jeton adossé à l\'or)' : '') + (rf !== 1 ? ' · recalé sur ton courtier (' + (rf > 1 ? '+' : '−') + Math.abs((rf - 1) * 100).toFixed(2).replace('.', ',') + ' %)' : '') + ' · version ' + K2K_VERSION + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     renderAll();
   }
 
@@ -750,7 +752,12 @@
     recalBtn.hidden = !Prices.LIVE[state.sym] || !!state.imported[state.sym];
     const f = Prices.factor(state.sym);
     recalBtn.textContent = f === 1 ? 'Recaler sur mon courtier' : 'Recalé (' + (f > 1 ? '+' : '−') + Math.abs((f - 1) * 100).toFixed(2).replace('.', ',') + ' %)';
+    // Même bouton sous le graphique, là où l'on lit la source du prix.
+    const under = $('chart-recal');
+    under.hidden = recalBtn.hidden;
+    under.textContent = f === 1 ? 'Recaler sur mon courtier (prix TradingView)' : recalBtn.textContent + ' · changer';
   }
+  $('chart-recal').addEventListener('click', () => recalBtn.click());
   recalBtn.addEventListener('click', () => {
     const f = frame();
     if (!f) return;
@@ -829,6 +836,14 @@
     if (isIOS) {
       navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
       if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {});
-    } else navigator.serviceWorker.register('sw.js').catch(() => {});
+    } else {
+      // Quand une nouvelle version est installée, la page se recharge une fois toute seule pour l'utiliser.
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        reg.update().catch(() => {});
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+      }).catch(() => {});
+    }
   }
 })();
