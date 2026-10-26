@@ -1,9 +1,9 @@
 // K2K : l'appli s'ouvre même hors connexion ; les données de marché passent toujours par le réseau.
-const CACHE = 'k2k-v36';
+const CACHE = 'k2k-v37';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'smc.js', 'cot.js', 'data.js', 'manifest.webmanifest', 'plan.js', 'zones.js', 'risk.js', 'stats.js', 'analysis.js', 'scanner.js', 'journal.js', 'icons/favicon-32.png', 'icons/icon-192.png', 'vendor/lightweight-charts.standalone.production.js'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
@@ -14,8 +14,10 @@ self.addEventListener('fetch', e => {
   if (/binance|cftc\.gov/.test(url.hostname)) return; // données en direct : jamais de cache
   if (/\.(png|webmanifest)$/.test(url.pathname)) return; // icônes et manifeste : toujours servis par le réseau, pour l'écran d'accueil
   // Réseau d'abord, cache en secours : la dernière version est toujours servie quand on est en ligne.
+  // « no-cache » : le navigateur revérifie chaque fichier auprès du serveur au lieu de garder 10 minutes l'ancienne version.
+  const req = url.origin === self.location.origin ? fetch(e.request.url, { cache: 'no-cache' }) : fetch(e.request);
   e.respondWith(
-    fetch(e.request).then(res => {
+    req.then(res => {
       if (res.ok || res.type === 'opaque') { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
       return res;
     }).catch(() => caches.match(e.request))
