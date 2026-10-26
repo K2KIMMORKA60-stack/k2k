@@ -171,17 +171,23 @@
       : 'Mesure sur l\'historique réel en cours…') + '</span>');
     if (inv != null) p('<b>Invalidation du scénario ' + (buy ? 'haussier' : 'baissier') + ' :</b> ' + esc('clôture ' + (pl ? pl.tf : ctx.tf) + ' ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) + ' avec élan.'));
 
-    // 7. Conclusion
-    let conf = 5;
-    if (htfDir && htfDir === mainDir) conf++;
-    if (ctx.cotBias != null && Math.sign(ctx.cotBias) === mainDir) conf++;
-    if (pl && pl.confluence >= 60) conf++;
-    if (sw && sw.dir === mainDir) conf++;
-    if (htfDir && htfDir !== mainDir) conf--;
-    if (ctx.tf === '5m') conf--;
-    conf = Math.max(3, Math.min(9, conf));
+    // 7. Conclusion. Confiance calculée uniquement à partir des mesures :
+    // avantage mesuré par rapport au seuil de rentabilité (4 pts), solidité de la mesure (2 pts),
+    // marge d'erreur au-dessus du seuil (2 pts), alignement du 4h et du 1h avec le scénario (2 pts).
     h3('Conclusion');
-    p(esc('Biais ' + (buy ? 'haussier' : 'baissier') + ' tant que ' + (inv != null ? P(inv) + ' tient' : 'la structure tient') + '. ' + (pl ? 'Plan K2K : ' + (buy ? 'achat' : 'vente') + ' à ' + P(pl.entry) + ', stop ' + P(pl.stop) + '.' : 'Pas d\'entrée propre pour l\'instant : patience.')) + ' <b>Confiance globale : ' + conf + '/10</b>' + esc(' (' + [htfDir === mainDir ? 'unités supérieures alignées' : 'unités supérieures pas alignées', ctx.cotBias != null ? (Math.sign(ctx.cotBias) === mainDir ? 'COT d\'accord' : 'COT pas d\'accord') : 'pas de COT', ctx.tf === '5m' ? 'unité courte' : null].filter(Boolean).join(', ') + ').'));
+    const concl = esc('Biais ' + (buy ? 'haussier' : 'baissier') + ' tant que ' + (inv != null ? P(inv) + ' tient' : 'la structure tient') + '. ' + (pl ? 'Plan K2K : ' + (buy ? 'achat' : 'vente') + ' à ' + P(pl.entry) + ', stop ' + P(pl.stop) + '.' : 'Pas d\'entrée propre pour l\'instant : patience.'));
+    if (m && m.pct != null) {
+      const be = 100 / (1 + R);
+      const edge = 2 + 2 * Math.max(-1, Math.min(1, (m.pct - be) / 20));
+      const size = m.n >= 100 ? 2 : m.n >= 50 ? 1.5 : 1;
+      const sure = m.lo > be ? 2 : m.pct > be ? 1 : 0;
+      const al = ['4h', '1h'].filter(t => ctx.frames[t] && Math.sign(ctx.frames[t].smc.trend || ctx.frames[t].smc.score) === mainDir).length;
+      const conf = Math.max(0, Math.min(10, Math.round(edge + size + sure + al)));
+      const pts = v => num(v, 1).replace(',0', '');
+      p(concl + ' <b>Confiance globale : ' + conf + '/10</b>' + esc(' (calculée : avantage mesuré ' + pts(edge) + '/4, nombre de cas ' + pts(size) + '/2, marge d\'erreur ' + sure + '/2, alignement 4h et 1h ' + al + '/2).'));
+    } else {
+      p(concl + ' <b>Confiance globale : non mesurable</b>' + esc(' (pas assez de cas mesurés pour ce scénario : pas de note plutôt qu\'une note inventée).'));
+    }
     return out.join('');
   }
 
