@@ -47,6 +47,28 @@
       }
       return { j: c.length, v: null };
     }
+    // Contact avec une zone (order block, breaker) : réaction = départ d'un ATR depuis le bord touché ;
+    // cassure = clôture au-delà de l'autre bord. Un retest profond qui reste dans la zone n'est pas une cassure.
+    function resolveZone(k, near, far, side) {
+      const a = atr[k];
+      for (let j = k; j < Math.min(c.length, k + HORIZON); j++) {
+        const brk = side < 0 ? c[j].close > far : c[j].close < far;
+        const rev = j > k && (side < 0 ? c[j].low <= near - a : c[j].high >= near + a);
+        if (brk && rev) return { j, v: null };
+        if (brk) return { j, v: 0 };
+        if (rev) return { j, v: 1 };
+      }
+      return { j: c.length, v: null };
+    }
+    function touchZone(cat, side, near, far, from) {
+      for (let k = Math.max(1, from); k < c.length; k++) {
+        if (side < 0 ? c[k].high >= near : c[k].low <= near) {
+          const r = resolveZone(k, near, far, side);
+          if (r.v != null) record(cat + ':' + side, r.v);
+          return;
+        }
+      }
+    }
     function touch(cat, side, level, from) {
       for (let k = Math.max(1, from); k < c.length; k++) {
         if (side < 0 ? c[k].high >= level : c[k].low <= level) {
@@ -68,14 +90,14 @@
       for (let k = ev.i + 1; k < c.length; k++) {
         if (ob.dir > 0 ? c[k].low <= ob.top : c[k].high >= ob.bottom) {
           if (entry !== inv) setups.push({ dir: ob.dir, k, entry, inv, aligned: trend[k - 1] === ob.dir });
-          const r = resolve(k, entry, ob.dir);
+          const r = resolveZone(k, entry, inv, ob.dir);
           if (r.v != null) record('ob:' + ob.dir, r.v);
           break;
         }
       }
       // Breaker : après une clôture qui traverse la zone, son retour dans l'autre sens.
       for (let k = ob.i + 2; k < c.length; k++) {
-        if (ob.dir > 0 ? c[k].close < ob.bottom : c[k].close > ob.top) { touch('breaker', -ob.dir, ob.dir > 0 ? ob.bottom : ob.top, k + 1); break; }
+        if (ob.dir > 0 ? c[k].close < ob.bottom : c[k].close > ob.top) { touchZone('breaker', -ob.dir, ob.dir > 0 ? ob.bottom : ob.top, ob.dir > 0 ? ob.top : ob.bottom, k + 1); break; }
       }
     }
 
@@ -89,7 +111,21 @@
       k = r ? Math.max(k + 1, r.j) : k + 1;
     }
 
-    const pct = (n, w) => ({ n, pct: n >= MIN_CASES ? Math.round(w / n * 100) : null });
+    // Pourcentage avec sa marge d'erreur (intervalle de Wilson à 95 %) : avec peu de cas, la vraie valeur peut être loin.
+    const pct = (n, w) => {
+      if (n < MIN_CASES) return { n, w, pct: null };
+      const p = w / n, z = 1.96, d = 1 + z * z / n, mid = (p + z * z / (2 * n)) / d, half = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+      return { n, w, pct: Math.round(p * 100), lo: Math.round((mid - half) * 100), hi: Math.round((mid + half) * 100) };
+    };
+    // Issue de chaque retour dans un order block : 1 cible touchée, 0 invalidation (clôture au-delà de la zone), avec la bougie.
+    function outcome(s, R) {
+      const tgt = s.entry + s.dir * R * Math.abs(s.entry - s.inv);
+      for (let j = s.k; j < Math.min(c.length, s.k + HORIZON); j++) {
+        if (s.dir > 0 ? c[j].close < s.inv : c[j].close > s.inv) return { v: 0, j };
+        if (j > s.k && (s.dir > 0 ? c[j].high >= tgt : c[j].low <= tgt)) return { v: 1, j };
+      }
+      return null;
+    }
     return {
       bars: c.length, from: c[0].time,
       // Retour dans un order block : la cible (à R fois le risque) est-elle touchée avant une clôture au-delà de la zone ?
@@ -97,12 +133,23 @@
         let n = 0, w = 0;
         for (const s of setups) {
           if (s.dir !== dir || s.aligned !== aligned) continue;
-          const tgt = s.entry + dir * R * Math.abs(s.entry - s.inv);
-          for (let j = s.k; j < Math.min(c.length, s.k + HORIZON); j++) {
-            const lost = dir > 0 ? c[j].close < s.inv : c[j].close > s.inv;
-            const won = j > s.k && (dir > 0 ? c[j].high >= tgt : c[j].low <= tgt);
-            if (lost) { n++; break; }
-            if (won) { n++; w++; break; }
+          const o = outcome(s, R);
+          if (o) { n++; w += o.v; }
+        }
+        return pct(n, w);
+      },
+      // Scénario alternatif, mesuré à part : après la clôture d'invalidation, le prix atteint-il la cible opposée
+      // (Ralt fois la hauteur de la zone, depuis le bord cassé) avant de reclôturer dans la zone ?
+      alternative(dir, aligned, R, Ralt) {
+        let n = 0, w = 0;
+        for (const s of setups) {
+          if (s.dir !== dir || s.aligned !== aligned) continue;
+          const o = outcome(s, R);
+          if (!o || o.v) continue;
+          const tgt = s.inv - dir * Ralt * Math.abs(s.entry - s.inv);
+          for (let j = o.j + 1; j < Math.min(c.length, o.j + HORIZON); j++) {
+            if (dir > 0 ? c[j].low <= tgt : c[j].high >= tgt) { n++; w++; break; }
+            if (dir > 0 ? c[j].close > s.inv : c[j].close < s.inv) { n++; break; }
           }
         }
         return pct(n, w);

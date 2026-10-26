@@ -110,16 +110,33 @@
     const m = st && R ? st.scenario(mainDir, bias === mainDir, R) : null;
     const tag = v => st === undefined ? 'mesure en cours…' : !st || !m ? 'non mesurable' : m.pct == null ? 'pas assez de données' : v + ' % mesuré';
     h3('Scénario principal · ' + (buy ? 'haussier' : 'baissier') + ' (' + tag(m && m.pct) + ')');
+    const num = (v, d) => v.toFixed(d).replace('.', ',');
     if (st && m) p('<span class="source">' + esc(m.pct == null
       ? 'Seulement ' + m.n + ' cas comparables dans l\'historique ' + ctx.tf + ' (il en faut ' + MIN + ') : pas de chiffre plutôt qu\'un chiffre inventé.'
-      : 'Sur les ' + m.n + ' dernières fois où le prix est revenu dans un order block ' + (buy ? 'haussier' : 'baissier') + ' en ' + ctx.tf + (bias === mainDir ? ' dans le sens de la structure' : ' contre la structure') + ', la cible 1 (à ' + R.toFixed(1).replace('.', ',') + ' fois le risque) a été touchée avant l\'invalidation dans ' + m.pct + ' % des cas. Historique réel depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '.') + '</span>');
+      : 'Sur les ' + m.n + ' dernières fois où le prix est revenu dans un order block ' + (buy ? 'haussier' : 'baissier') + ' en ' + ctx.tf + (bias === mainDir ? ' dans le sens de la structure' : ' contre la structure') + ', la cible 1 (à ' + num(R, 1) + ' fois le risque) a été touchée avant l\'invalidation dans ' + m.pct + ' % des cas, et l\'invalidation dans ' + (100 - m.pct) + ' %. Historique réel depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '.') + '</span>');
+    // Seuil de rentabilité, avantage moyen et marge d'erreur : pour lire correctement le pourcentage.
+    if (st && m && m.pct != null) {
+      const be = Math.round(100 / (1 + R)), ev = m.w / m.n * R - (1 - m.w / m.n);
+      p('<b>Lecture du ' + m.pct + ' %.</b> ' + esc('Avec une cible à ' + num(R, 1) + ' fois le risque, il suffit de gagner ' + be + ' % des fois pour être à zéro (seuil de rentabilité). Résultat moyen mesuré : ' + (ev >= 0 ? '+' : '') + num(ev, 2) + ' R par trade. Marge d\'erreur avec ' + m.n + ' cas : la vraie valeur est entre ' + m.lo + ' % et ' + m.hi + ' %. ')
+        + '<b>' + esc(m.lo > be ? 'Avantage confirmé, même dans le bas de la marge.' : m.hi < be ? 'Désavantage : même le haut de la marge est sous le seuil.' : 'Avantage pas encore prouvé : la marge passe sous le seuil de rentabilité.') + '</b>');
+    }
     const path = ['Prix actuel ' + P(last), trig.charAt(0).toUpperCase() + trig.slice(1), (buy ? 'Rejet haussier' : 'Rejet baissier') + ' et confirmation'].concat(tgt.map((t, k) => 'Cible ' + (k + 1) + ' : ' + P(t)));
     out.push('<ol class="path">' + path.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>');
     out.push('<ul class="scen">' + (inv != null ? '<li><b>Invalidation :</b> ' + esc('clôture ' + (pl ? pl.tf : ctx.tf) + ' ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv)) + '</li>' : '')
       + '<li><b>Logique :</b> ' + esc('structure ' + (bias > 0 ? 'haussière' : bias < 0 ? 'baissière' : 'neutre') + (ev ? ', dernier ' + ev.type + (ev.dir > 0 ? ' haussier' : ' baissier') : '') + (sw ? ', ' + (sw.dir > 0 ? 'SSL' : 'BSL') + ' balayée' : '') + (htfDir === mainDir ? ', unités supérieures dans le même sens' : '') + '.') + '</li></ul>');
-    const altT = (buy ? below : above).find(l => inv == null || (buy ? l.level < inv : l.level > inv));
-    h3('Scénario alternatif · ' + (buy ? 'baissier' : 'haussier') + ' (' + tag(m && m.pct != null ? 100 - m.pct : null) + ')');
+    // Cible du scénario alternatif : premier niveau à au moins une bougie moyenne au-delà de l'invalidation.
+    const altT = (buy ? below : above).find(l => inv == null || (buy ? l.level < inv - (s.atr || 0) : l.level > inv + (s.atr || 0)));
+    // Scénario alternatif mesuré à part : après une clôture d'invalidation, la cible opposée est-elle atteinte
+    // avant que le prix ne reclôture dans la zone ?
+    const h = entryLvl != null && inv != null ? Math.abs(entryLvl - inv) : 0;
+    const Ralt = altT && h ? Math.min(10, Math.max(0.5, Math.abs(altT.level - inv) / h)) : null;
+    const ma = st && R && Ralt ? st.alternative(mainDir, bias === mainDir, R, Ralt) : null;
+    const tagAlt = st === undefined ? 'mesure en cours…' : !st || !ma ? 'non mesurable' : ma.pct == null ? 'pas assez de données' : ma.pct + ' % mesuré après invalidation';
+    h3('Scénario alternatif · ' + (buy ? 'baissier' : 'haussier') + ' (' + tagAlt + ')');
     const altPath = [(inv != null ? 'Clôture ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) : 'Cassure dans l\'autre sens'), 'CHoCH ' + (buy ? 'baissier' : 'haussier') + ' en ' + ctx.tf].concat(altT ? ['Retour vers ' + P(altT.level) + ' (' + altT.name + ')'] : []);
+    if (st && ma) p('<span class="source">' + esc(ma.pct == null
+      ? 'Seulement ' + ma.n + ' invalidations comparables dans l\'historique (il en faut ' + MIN + ') : pas de chiffre.'
+      : 'Mesuré à part : sur ' + ma.n + ' invalidations passées, le prix a ensuite atteint la cible ' + (buy ? 'baissière' : 'haussière') + ' avant de revenir dans la zone dans ' + ma.pct + ' % des cas (marge ' + ma.lo + ' – ' + ma.hi + ' %).') + '</span>');
     out.push('<ol class="path">' + altPath.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>');
     p(esc('Si ' + (inv != null ? 'le prix clôture ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) : 'la structure casse dans l\'autre sens') + ', le marché peut aller chercher ' + (altT ? 'la liquidité à ' + P(altT.level) + ' (' + altT.name + ')' : 'le prochain niveau ' + (buy ? 'en dessous' : 'au-dessus')) + '. On ne force pas : on attend une nouvelle structure.'));
 
@@ -134,22 +151,23 @@
     lv.sort((a, b) => b[0] - a[0]);
     // Colonnes Baissière / Haussière mesurées : à chaque contact passé avec ce type de niveau (même côté du prix),
     // le prix est-il reparti d'une bougie moyenne dans le sens du rejet, ou a-t-il cassé le niveau ?
-    const cell = (v, cls) => '<span class="' + cls + '">' + stars(Math.round(v / 20)) + ' ' + v + ' %</span>';
-    const none = n => '<span class="source">pas assez (' + n + ')</span>';
+    // Entre 45 et 55 % : bruit, affiché en gris « neutre » sans étoiles. Le nombre de cas est toujours visible.
+    const cell = (v, n, cls) => v >= 45 && v <= 55 ? '<span class="source">neutre ' + v + ' % · ' + n + ' cas</span>' : '<span class="' + cls + '">' + stars(Math.round(v / 20)) + ' ' + v + ' % · ' + n + ' cas</span>';
+    const none = n => '<span class="source">pas assez (' + n + ' cas)</span>';
     table(['Niveau', 'Type', 'Rôle', 'Importance', 'Baissière', 'Haussière'], lv.map(r => {
       if (!r[2]) {
-        const ok = m && m.pct != null, up = ok ? (buy ? m.pct : 100 - m.pct) : null;
-        return [esc(P(r[0])), '<b>' + esc(r[1]) + '</b>', '—', '—', ok ? '<span class="odds-sell">' + (100 - up) + ' %</span>' : '—', ok ? '<span class="odds-buy">' + up + ' %</span>' : '—'];
+        const ok = m && m.pct != null, mc = ok ? '<span class="' + (buy ? 'odds-buy' : 'odds-sell') + '">cible 1 : ' + m.pct + ' % · ' + m.n + ' cas</span>' : '—';
+        return [esc(P(r[0])), '<b>' + esc(r[1]) + '</b>', '—', '—', buy ? '—' : mc, buy ? mc : '—'];
       }
       const side = r[0] > last ? -1 : 1, q = st ? st.level(r[3], side) : null;
       const head = [esc(P(r[0])), esc(r[1]), side < 0 ? 'Résistance' : 'Support', stars(r[2])];
       if (!q) return head.concat(['…', '…']);
       if (q.pct == null) return head.concat([none(q.n), none(q.n)]);
       const sell = side < 0 ? q.pct : 100 - q.pct;
-      return head.concat([cell(sell, 'odds-sell'), cell(100 - sell, 'odds-buy')]);
+      return head.concat([cell(sell, q.n, 'odds-sell'), cell(100 - sell, q.n, 'odds-buy')]);
     }));
     p('<span class="source">' + esc(st === null ? 'Historique trop court ou indisponible : pas de probabilité affichée plutôt qu\'un chiffre inventé.' : st
-      ? 'Baissière / Haussière : mesuré sur ' + st.bars + ' bougies réelles ' + ctx.tf + ' depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '. Pour chaque type de niveau, on a compté les contacts passés : le prix est-il reparti d\'une bougie moyenne vers le bas (vente) ou vers le haut (achat) ? Moins de ' + MIN + ' cas : pas de chiffre. Sur la ligne du prix : le scénario principal mesuré. Une statistique passée, pas une garantie.'
+      ? 'Baissière / Haussière : mesuré sur ' + st.bars + ' bougies réelles ' + ctx.tf + ' depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '. Pour chaque type de niveau, on a compté les contacts passés : rejet (le prix repart d\'une bougie moyenne) ou cassure (pour une zone : clôture au-delà de l\'autre bord). Entre 45 et 55 % : neutre, l\'écart ne veut rien dire. Moins de ' + MIN + ' cas : pas de chiffre. Une statistique passée, pas une garantie.'
       : 'Mesure sur l\'historique réel en cours…') + '</span>');
     if (inv != null) p('<b>Invalidation du scénario ' + (buy ? 'haussier' : 'baissier') + ' :</b> ' + esc('clôture ' + (pl ? pl.tf : ctx.tf) + ' ' + (buy ? 'sous ' : 'au-dessus de ') + P(inv) + ' avec élan.'));
 
