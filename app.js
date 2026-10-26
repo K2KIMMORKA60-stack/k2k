@@ -671,7 +671,7 @@
         if (!k) return;
         const tf = k.i, f = state.frames[tf];
         if (!f) return;
-        const bar = { time: Math.floor(k.t / 1000), open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
+        const bar = Prices.scale(state.sym, { time: Math.floor(k.t / 1000), open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v });
         const c = f.candles, last = c[c.length - 1];
         if (last && last.time === bar.time) c[c.length - 1] = bar;
         else if (!last || bar.time > last.time) c.push(bar);
@@ -719,6 +719,7 @@
     const u = Prices.UNIVERSE.find(m => m.sym === sym);
     $('d-sym').textContent = sym;
     $('d-tv').href = Prices.tvUrl(sym, state.tf);
+    showRecal();
     $('d-name').textContent = u ? u.name + ' · ' + u.cls : '';
     state.fitted = '';
     corrFor = '';
@@ -743,6 +744,28 @@
     try { localStorage.setItem('k2k.clean', view.clean ? '1' : '0'); } catch (e) { /* stockage indisponible */ }
     syncView(); renderChart(); renderPlan();
   });
+  // Recalage : tu tapes le prix de ton graphique TradingView, K2K enlève l'écart avec sa source (PAXG pour l'or).
+  const recalBtn = $('d-recal');
+  function showRecal() {
+    recalBtn.hidden = !Prices.LIVE[state.sym] || !!state.imported[state.sym];
+    const f = Prices.factor(state.sym);
+    recalBtn.textContent = f === 1 ? 'Recaler sur mon courtier' : 'Recalé (' + (f > 1 ? '+' : '−') + Math.abs((f - 1) * 100).toFixed(2).replace('.', ',') + ' %)';
+  }
+  recalBtn.addEventListener('click', () => {
+    const f = frame();
+    if (!f) return;
+    const raw = f.candles[f.candles.length - 1].close / Prices.factor(state.sym);
+    const ans = prompt('Prix affiché en ce moment sur ton graphique TradingView (OANDA) pour ' + state.sym + ' ?\nK2K est à ' + price(f.candles[f.candles.length - 1].close) + '.\nLaisse vide pour enlever le recalage.', '');
+    if (ans == null) return;
+    const v = parseFloat(ans.replace(/\s/g, '').replace(',', '.'));
+    if (ans.trim() && !(v > 0 && Math.abs(v / raw - 1) < 0.05)) { alert('Ce prix est trop loin de celui de K2K (plus de 5 %). Vérifie le marché et réessaie.'); return; }
+    Prices.setFactor(state.sym, ans.trim() ? v / raw : 1);
+    Stats.clear(state.sym);
+    for (const k of Object.keys(statsAsked)) if (k.startsWith(state.sym)) delete statsAsked[k];
+    showRecal();
+    loadCandles();
+  });
+
   $('refresh').addEventListener('click', () => { delete state.cot[state.sym]; delete state.imported[state.sym]; loadCandles(); loadCot(state.sym); });
   $('csv').addEventListener('change', async e => {
     const file = e.target.files[0];

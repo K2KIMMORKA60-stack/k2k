@@ -18,6 +18,16 @@
   ];
   const HOSTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
 
+  // Recalage sur le prix du courtier : le PAXG (or) cote avec une petite prime sur l'or OANDA.
+  // Le rapport « prix courtier / prix Binance » est gardé sur l'appareil et appliqué à toutes les bougies.
+  function factor(symbol) { try { const v = +localStorage.getItem('k2k.recal.' + symbol); return v > 0 ? v : 1; } catch (e) { return 1; } }
+  function setFactor(symbol, v) { try { if (v > 0 && v !== 1) localStorage.setItem('k2k.recal.' + symbol, String(v)); else localStorage.removeItem('k2k.recal.' + symbol); } catch (e) { /* stockage indisponible */ } }
+  function scale(symbol, b) {
+    const f = factor(symbol);
+    if (f === 1) return b;
+    return { time: b.time, open: b.open * f, high: b.high * f, low: b.low * f, close: b.close * f, volume: b.volume };
+  }
+
   async function fetchLive(symbol, interval, limit) {
     const pair = LIVE[symbol];
     if (!pair) return null;
@@ -27,7 +37,7 @@
         const res = await fetch(h + '/api/v3/klines?symbol=' + pair + '&interval=' + interval + '&limit=' + (limit || 500));
         if (!res.ok) throw new Error('Binance a répondu ' + res.status);
         const rows = await res.json();
-        return rows.map(r => ({ time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] }));
+        return rows.map(r => scale(symbol, { time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] }));
       } catch (e) { lastErr = e; }
     }
     throw lastErr;
@@ -50,7 +60,7 @@
       }
       if (!rows) throw lastErr;
       if (!rows.length) break;
-      out = rows.map(r => ({ time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] })).concat(out);
+      out = rows.map(r => scale(symbol, { time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] })).concat(out);
       end = rows[0][0] - 1;
       if (rows.length < 1000) break;
     }
@@ -96,6 +106,6 @@
   const TV_TF = { '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
   const tvUrl = (sym, tf) => 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(TV[sym] || sym) + '&interval=' + (TV_TF[tf] || '60');
 
-  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, fetchHistory, parseCsv };
+  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, fetchHistory, parseCsv, factor, setFactor, scale };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Prices = api;
 })(typeof self !== 'undefined' ? self : this);

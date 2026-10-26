@@ -193,6 +193,8 @@
     return p;
   }
 
-  const api = { MIN_CASES, roundStep, build, get, load };
+  function clear(sym) { for (const k of Object.keys(cache)) if (k.startsWith(sym)) delete cache[k]; }
+
+  const api = { clear, MIN_CASES, roundStep, build, get, load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Stats = api;
 })(typeof self !== 'undefined' ? self : this);

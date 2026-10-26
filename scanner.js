@@ -235,7 +235,7 @@
         if (!k || !k.k) return;
         const sym = bySym[k.s], r = results[sym];
         if (!r || !r.f || k.k.i !== scannedUnit) return;
-        const b = k.k, bar = { time: Math.floor(b.t / 1000), open: +b.o, high: +b.h, low: +b.l, close: +b.c, volume: +b.v };
+        const b = k.k, bar = Prices.scale(sym, { time: Math.floor(b.t / 1000), open: +b.o, high: +b.h, low: +b.l, close: +b.c, volume: +b.v });
         const c = r.f.candles, last = c[c.length - 1];
         if (last && last.time === bar.time) c[c.length - 1] = bar;
         else if (!last || bar.time > last.time) c.push(bar);
