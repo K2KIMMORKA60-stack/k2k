@@ -7,7 +7,9 @@
 
   const MIN_CASES = 30;
   const HORIZON = 300; // au-delà, le cas est ignoré (ni gagné ni perdu)
-  const HISTORY = 3000;
+  // Profondeur d'historique par unité : environ 3 ans en 1h et 4h, 1 an en 30m, 6 mois en 15m et 5m
+  // (au-delà, trop de bougies pour un téléphone). Plus de cas, des marges plus serrées, plusieurs types de marché.
+  const HISTORY = { '5m': 52000, '15m': 17500, '30m': 17500, '1h': 26300, '4h': 6600, '1d': 1100, '1w': 600 };
 
   // Taille moyenne d'une bougie à chaque instant, sans regarder le futur.
   function atrSeries(c, len) {
@@ -166,7 +168,7 @@
   function load(sym, tf, fallback) {
     const key = sym + tf, e = cache[key];
     if (e && (e.pending || Date.now() - e.at < 30 * 60000)) return e.pending || Promise.resolve(e.data);
-    const p = (root.Prices.LIVE[sym] ? root.Prices.fetchHistory(sym, tf, HISTORY) : Promise.resolve(fallback))
+    const p = (root.Prices.LIVE[sym] ? root.Prices.fetchHistory(sym, tf, HISTORY[tf] || 3000) : Promise.resolve(fallback))
       .catch(() => fallback)
       .then(c => { const data = build(c); cache[key] = { at: Date.now(), data }; return data; });
     cache[key] = { at: 0, pending: p };

@@ -232,7 +232,7 @@
       statsAsked[slot] = true;
       Stats.load(state.sym, state.tf, f.candles).then(() => { if (state.sym + state.tf === key) renderReport(); });
     }
-    const html = f ? Analysis.build({ sym: state.sym, tf: state.tf, frames: state.frames, plan: state.plan, cotBias: cotBias(), stats, price: v => price(v), when, zones: (f2, n) => Zones.nearest(f2, n, 1) }) : '';
+    const html = f ? Analysis.build({ sym: state.sym, tf: state.tf, frames: state.frames, plan: state.plan, cotBias: cotBias(), stats, spread: spread(), price: v => price(v), when, zones: (f2, n) => Zones.nearest(f2, n, 1) }) : '';
     state.report = html;
     $('report').hidden = !html;
     $('report-body').innerHTML = html + '<p class="source">Aide à la décision, pas un conseil financier. Gère toujours ton risque.</p>';
@@ -287,6 +287,13 @@
   capIn.value = store.get('cap') || '10000';
   pctIn.value = store.get('pct') || '1';
   for (const el of [capIn, pctIn]) el.addEventListener('input', () => { store.set('cap', capIn.value); store.set('pct', pctIn.value); renderRisk(state.plan); });
+  // Spread de ton courtier, par marché : il entre dans le seuil de rentabilité des probabilités mesurées.
+  const SPREAD = { XAUUSD: 0.3, NAS100: 1.5, EURUSD: 0.00012, BTC: 20, ETH: 1.5, SOL: 0.1, BNB: 0.5, XRP: 0.002 };
+  const spreadIn = $('r-spread');
+  const spread = () => { const v = parseFloat(String(spreadIn.value).replace(',', '.')); return v >= 0 ? v : 0; };
+  function loadSpread() { spreadIn.value = store.get('spread.' + state.sym) || String(SPREAD[state.sym] != null ? SPREAD[state.sym] : 0); }
+  loadSpread();
+  spreadIn.addEventListener('input', () => { store.set('spread.' + state.sym, spreadIn.value); renderReport(); });
   let corrFor = '';
 
   function renderRisk(p) {
@@ -706,6 +713,7 @@
   // ---------- Interactions ----------
   function selectMarket(sym) {
     state.sym = sym;
+    loadSpread();
     const u = Prices.UNIVERSE.find(m => m.sym === sym);
     $('d-sym').textContent = sym;
     $('d-tv').href = Prices.tvUrl(sym, state.tf);

@@ -115,10 +115,13 @@
       ? 'Seulement ' + m.n + ' cas comparables dans l\'historique ' + ctx.tf + ' (il en faut ' + MIN + ') : pas de chiffre plutôt qu\'un chiffre inventé.'
       : 'Sur les ' + m.n + ' dernières fois où le prix est revenu dans un order block ' + (buy ? 'haussier' : 'baissier') + ' en ' + ctx.tf + (bias === mainDir ? ' dans le sens de la structure' : ' contre la structure') + ', la cible 1 (à ' + num(R, 1) + ' fois le risque) a été touchée avant l\'invalidation dans ' + m.pct + ' % des cas, et l\'invalidation dans ' + (100 - m.pct) + ' %. Historique réel depuis le ' + new Date(st.from * 1000).toLocaleDateString('fr-FR') + '.') + '</span>');
     // Seuil de rentabilité, avantage moyen et marge d'erreur : pour lire correctement le pourcentage.
+    // Le spread est payé à chaque trade : il réduit le gain et augmente la perte, donc il remonte le seuil.
+    const cost = R && ctx.spread > 0 ? ctx.spread / Math.abs(entryLvl - inv) : 0;
+    const beRaw = R ? 100 * (1 + cost) / (1 + R) : null;
     if (st && m && m.pct != null) {
-      const be = Math.round(100 / (1 + R)), ev = m.w / m.n * R - (1 - m.w / m.n);
-      p('<b>Lecture du ' + m.pct + ' %.</b> ' + esc('Avec une cible à ' + num(R, 1) + ' fois le risque, il suffit de gagner ' + be + ' % des fois pour être à zéro (seuil de rentabilité). Résultat moyen mesuré : ' + (ev >= 0 ? '+' : '') + num(ev, 2) + ' R par trade. Marge d\'erreur avec ' + m.n + ' cas : la vraie valeur est entre ' + m.lo + ' % et ' + m.hi + ' %. ')
-        + '<b>' + esc(m.lo > be ? 'Avantage confirmé, même dans le bas de la marge.' : m.hi < be ? 'Désavantage : même le haut de la marge est sous le seuil.' : 'Avantage pas encore prouvé : la marge passe sous le seuil de rentabilité.') + '</b>');
+      const be = Math.round(beRaw), q = m.w / m.n, ev = q * (R - cost) - (1 - q) * (1 + cost);
+      p('<b>Lecture du ' + m.pct + ' %.</b> ' + esc('Avec une cible à ' + num(R, 1) + ' fois le risque' + (cost ? ' et un spread de ' + P(ctx.spread) + ' (' + num(cost, 2) + ' R par trade)' : ', sans spread renseigné') + ', il faut gagner ' + be + ' % des fois pour être à zéro (seuil de rentabilité). Résultat moyen mesuré' + (cost ? ', spread déduit' : '') + ' : ' + (ev >= 0 ? '+' : '') + num(ev, 2) + ' R par trade. Marge d\'erreur avec ' + m.n + ' cas : la vraie valeur est entre ' + m.lo + ' % et ' + m.hi + ' %. ')
+        + '<b>' + esc(m.lo > be ? 'Avantage probable : même le bas de la marge est au-dessus du seuil.' : m.hi < be ? 'Désavantage : même le haut de la marge est sous le seuil.' : 'Avantage pas encore prouvé : la marge passe sous le seuil de rentabilité.') + '</b>');
     }
     const path = ['Prix actuel ' + P(last), trig.charAt(0).toUpperCase() + trig.slice(1), (buy ? 'Rejet haussier' : 'Rejet baissier') + ' et confirmation'].concat(tgt.map((t, k) => 'Cible ' + (k + 1) + ' : ' + P(t)));
     out.push('<ol class="path">' + path.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>');
@@ -177,7 +180,7 @@
     h3('Conclusion');
     const concl = esc('Biais ' + (buy ? 'haussier' : 'baissier') + ' tant que ' + (inv != null ? P(inv) + ' tient' : 'la structure tient') + '. ' + (pl ? 'Plan K2K : ' + (buy ? 'achat' : 'vente') + ' à ' + P(pl.entry) + ', stop ' + P(pl.stop) + '.' : 'Pas d\'entrée propre pour l\'instant : patience.'));
     if (m && m.pct != null) {
-      const be = 100 / (1 + R);
+      const be = beRaw;
       const edge = 2 + 2 * Math.max(-1, Math.min(1, (m.pct - be) / 20));
       const size = m.n >= 100 ? 2 : m.n >= 50 ? 1.5 : 1;
       const sure = m.lo > be ? 2 : m.pct > be ? 1 : 0;
