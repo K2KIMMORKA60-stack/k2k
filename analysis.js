@@ -172,7 +172,7 @@
         return [esc(P(r[0])), '<b>' + esc(r[1]) + '</b>', '—', '—', buy ? '—' : mc, buy ? mc : '—'];
       }
       const side = r[0] > last ? -1 : 1, q = st ? st.level(r[3], side) : null;
-      const head = [esc(P(r[0])), esc(r[1]), side < 0 ? 'Résistance' : 'Support', stars(r[2])];
+      const head = [esc(P(r[0])), esc(r[1]), side < 0 ? '<span class="role-sell">Vendre</span>' : '<span class="role-buy">Acheter</span>', stars(r[2])];
       if (!q) return head.concat(['…', '…']);
       if (q.pct == null) return head.concat([none(q.n), none(q.n)]);
       const sell = side < 0 ? q.pct : 100 - q.pct;
