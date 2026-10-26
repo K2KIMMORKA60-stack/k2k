@@ -151,6 +151,23 @@
     if (z.some(o => o.dir < 0)) foot.appendChild(badge('sell', 'VENTE'));
     const dist = badge('dist', '');
     if (z.length) foot.appendChild(dist);
+    // Or et EURUSD viennent de Binance (PAXG, EURUSDT) : bouton pour caler le prix sur celui de TradingView.
+    if (m.sym === 'XAUUSD' || m.sym === 'EURUSD') {
+      const fr = Prices.factor(m.sym), rb = document.createElement('button');
+      rb.type = 'button'; rb.className = 'badge recal-badge';
+      rb.textContent = fr === 1 ? 'Recaler sur TradingView' : 'Recalé ' + (fr > 1 ? '+' : '−') + Math.abs((fr - 1) * 100).toFixed(2).replace('.', ',') + ' %';
+      rb.addEventListener('click', () => {
+        const lastBar = f.candles[f.candles.length - 1], raw = lastBar.close / fr;
+        const ans = prompt('Prix affiché en ce moment sur ton TradingView (OANDA) pour ' + m.sym + ' ?\nK2K affiche ' + Zones.fmtPrice(lastBar.close) + '.\nLaisse vide pour enlever le recalage.', '');
+        if (ans == null) return;
+        const v = parseFloat(ans.replace(/\s/g, '').replace(',', '.'));
+        if (ans.trim() && !(v > 0 && Math.abs(v / raw - 1) < 0.05)) { alert('Ce prix est trop loin de celui de K2K (plus de 5 %). Vérifie le marché et réessaie.'); return; }
+        Prices.setFactor(m.sym, ans.trim() ? v / raw : 1);
+        if (window.Stats) Stats.clear(m.sym);
+        scan();
+      });
+      foot.appendChild(rb);
+    }
     const cls = document.createElement('span'); cls.className = 'cls'; cls.textContent = m.cls; foot.appendChild(cls);
     el.querySelector('.tv-mini').href = Prices.tvUrl(m.sym, scannedUnit);
     const open = () => { location.hash = '#/' + m.sym + '/' + UNIT_TF[scannedUnit]; };

@@ -3,7 +3,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const K2K_VERSION = 39;
+  const K2K_VERSION = 40;
   const css = getComputedStyle(document.documentElement);
   const C = name => css.getPropertyValue(name).trim();
   const COL = { bull: C('--bull'), bear: C('--bear'), gold: C('--gold'), warn: C('--warn'), muted: C('--muted'), line: C('--line'), fg: C('--fg'), surface: C('--surface') };
