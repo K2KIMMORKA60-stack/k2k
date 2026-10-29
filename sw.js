@@ -1,5 +1,5 @@
 // K2K : l'appli s'ouvre même hors connexion ; les données de marché passent toujours par le réseau.
-const CACHE = 'k2k-v43';
+const CACHE = 'k2k-v44';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'smc.js', 'cot.js', 'data.js', 'manifest.webmanifest', 'plan.js', 'zones.js', 'risk.js', 'stats.js', 'analysis.js', 'scanner.js', 'journal.js', 'icons/favicon-32.png', 'icons/icon-192.png', 'vendor/lightweight-charts.standalone.production.js'];
 
 self.addEventListener('install', e => {
@@ -11,7 +11,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  if (/binance|cftc\.gov/.test(url.hostname)) return; // données en direct : jamais de cache
+  if (/binance|cftc\.gov|gold-api/.test(url.hostname)) return; // données en direct : jamais de cache
   if (/\.(png|webmanifest)$/.test(url.pathname)) return; // icônes et manifeste : toujours servis par le réseau, pour l'écran d'accueil
   // Réseau d'abord, cache en secours : la dernière version est toujours servie quand on est en ligne.
   // « no-cache » : le navigateur revérifie chaque fichier auprès du serveur au lieu de garder 10 minutes l'ancienne version.

@@ -3,7 +3,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const K2K_VERSION = 43;
+  const K2K_VERSION = 44;
   const css = getComputedStyle(document.documentElement);
   const C = name => css.getPropertyValue(name).trim();
   const COL = { bull: C('--bull'), bear: C('--bear'), gold: C('--gold'), warn: C('--warn'), muted: C('--muted'), line: C('--line'), fg: C('--fg'), surface: C('--surface') };
@@ -605,7 +605,7 @@
     state.frames = frames;
     if (!silent) connectLive();
     const rf = Prices.factor(sym);
-    $('chart-source').textContent = Prices.sourceName(sym) + (rf !== 1 ? (Prices.isAuto(sym) ? ' · recalé automatiquement sur OANDA, estimation (' : ' · recalé sur ton courtier (') + (rf > 1 ? '+' : '−') + Math.abs((rf - 1) * 100).toFixed(2).replace('.', ',') + ' %)' : '') + ' · version ' + K2K_VERSION + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    $('chart-source').textContent = Prices.sourceName(sym) + (rf !== 1 && !Prices.isAuto(sym) ? ' · recalé sur ton courtier (' + (rf > 1 ? '+' : '−') + Math.abs((rf - 1) * 100).toFixed(2).replace('.', ',') + ' %)' : '') + ' · version ' + K2K_VERSION + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     renderAll();
   }
 
