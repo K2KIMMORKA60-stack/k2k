@@ -18,54 +18,81 @@
   ];
   const HOSTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
 
-  // Recalage sur le prix du courtier : le PAXG (or) cote avec une petite prime sur l'or OANDA.
-  // Le rapport « prix courtier / prix Binance » est gardé sur l'appareil et appliqué à toutes les bougies.
-  // Sans recalage manuel, l'or est recalé automatiquement sur l'écart habituel PAXG / OANDA XAUUSD
-  // (mesuré le 26/10/2026 : environ −0,30 %). Une estimation : quelques dollars près.
-  const AUTO = { XAUUSD: 0.997 };
-  function stored(symbol) { try { const v = +localStorage.getItem('k2k.recal.' + symbol); return v > 0 ? v : null; } catch (e) { return null; } }
-  function factor(symbol) { return stored(symbol) || AUTO[symbol] || 1; }
-  function isAuto(symbol) { return !stored(symbol) && !!AUTO[symbol]; }
-  function setFactor(symbol, v) { try { if (v > 0 && v !== 1) localStorage.setItem('k2k.recal.' + symbol, String(v)); else localStorage.removeItem('k2k.recal.' + symbol); } catch (e) { /* stockage indisponible */ } }
+  // L'or vient d'abord du contrat perpétuel Binance XAUUSDT, qui suit l'or au comptant (comme OANDA XAUUSD)
+  // à un ou deux dollars près. Si ce flux ne répond pas, K2K se rabat sur le PAXG, un jeton dont l'écart
+  // avec l'or change d'un jour à l'autre (+14 $ le 26/10, −12 $ le 29/10).
+  const FUT = { XAUUSD: 'XAUUSDT' };
+  const FUT_HOST = 'https://fapi.binance.com';
+  const used = {}, spotAt = {}; // source réellement utilisée par marché : 'fut' ou 'spot'
+  const source = symbol => used[symbol] || (FUT[symbol] ? 'fut' : 'spot');
+  function sourceName(symbol) {
+    return source(symbol) === 'fut' ? 'Binance Futures ' + FUT[symbol] + ' (or au comptant)' : 'Binance ' + LIVE[symbol] + (symbol === 'XAUUSD' ? ' (jeton adossé à l\'or, flux de secours)' : '');
+  }
+  // Flux en direct (WebSocket) correspondant à la source utilisée.
+  function wsInfo(symbol) {
+    return source(symbol) === 'fut'
+      ? { pair: FUT[symbol], hosts: ['wss://fstream.binance.com'] }
+      : { pair: LIVE[symbol], hosts: ['wss://stream.binance.com:9443', 'wss://data-stream.binance.vision'] };
+  }
+
+  // Recalage sur le prix du courtier (bouton « Recaler ») : rapport « prix courtier / prix Binance »,
+  // gardé sur l'appareil pour chaque source. Plus d'écart automatique sur le PAXG : il change de sens d'un jour à l'autre.
+  const AUTO = {};
+  const key = symbol => 'k2k.recal.' + symbol + (source(symbol) === 'fut' ? '.fut' : '');
+  function stored(symbol) { try { const v = +localStorage.getItem(key(symbol)); return v > 0 ? v : null; } catch (e) { return null; } }
+  function factor(symbol) { return stored(symbol) || (source(symbol) === 'spot' && AUTO[symbol]) || 1; }
+  function isAuto(symbol) { return !stored(symbol) && source(symbol) === 'spot' && !!AUTO[symbol]; }
+  function setFactor(symbol, v) { try { if (v > 0 && v !== 1) localStorage.setItem(key(symbol), String(v)); else localStorage.removeItem(key(symbol)); } catch (e) { /* stockage indisponible */ } }
   function scale(symbol, b) {
     const f = factor(symbol);
     if (f === 1) return b;
     return { time: b.time, open: b.open * f, high: b.high * f, low: b.low * f, close: b.close * f, volume: b.volume };
   }
+  const toBar = r => ({ time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] });
 
-  async function fetchLive(symbol, interval, limit) {
-    const pair = LIVE[symbol];
-    if (!pair) return null;
+  // Une page de bougies brutes : contrat XAUUSDT d'abord pour l'or, sinon Binance au comptant.
+  async function page(symbol, interval, limit, end) {
+    const q = '?interval=' + interval + '&limit=' + limit + (end ? '&endTime=' + end : '');
+    // Après un échec du contrat, on retente sa lecture au bout de 10 minutes.
+    if (used[symbol] === 'spot' && Date.now() - (spotAt[symbol] || 0) > 600000 && !end) delete used[symbol];
+    if (FUT[symbol] && used[symbol] !== 'spot') {
+      try {
+        const res = await fetch(FUT_HOST + '/fapi/v1/klines' + q + '&symbol=' + FUT[symbol]);
+        if (!res.ok) throw new Error('Binance Futures a répondu ' + res.status);
+        const rows = await res.json();
+        if (!Array.isArray(rows) || !rows.length) throw new Error('pas de bougies');
+        used[symbol] = 'fut';
+        return rows;
+      } catch (e) {
+        if (used[symbol] === 'fut' && end) return []; // historique du contrat épuisé : on s'arrête là
+        used[symbol] = 'spot'; spotAt[symbol] = Date.now();
+      }
+    }
     let lastErr;
     for (const h of HOSTS) {
       try {
-        const res = await fetch(h + '/api/v3/klines?symbol=' + pair + '&interval=' + interval + '&limit=' + (limit || 500));
+        const res = await fetch(h + '/api/v3/klines' + q + '&symbol=' + LIVE[symbol]);
         if (!res.ok) throw new Error('Binance a répondu ' + res.status);
-        const rows = await res.json();
-        return rows.map(r => scale(symbol, { time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] }));
+        return await res.json();
       } catch (e) { lastErr = e; }
     }
     throw lastErr;
   }
 
+  async function fetchLive(symbol, interval, limit) {
+    if (!LIVE[symbol]) return null;
+    const rows = await page(symbol, interval, limit || 500);
+    return rows.map(r => scale(symbol, toBar(r)));
+  }
+
   // Historique long (plusieurs pages de 1 000 bougies) pour mesurer les taux de réussite passés.
   async function fetchHistory(symbol, interval, total) {
-    const pair = LIVE[symbol];
-    if (!pair) return null;
+    if (!LIVE[symbol]) return null;
     let out = [], end = null;
     while (out.length < (total || 3000)) {
-      let rows = null, lastErr;
-      for (const h of HOSTS) {
-        try {
-          const res = await fetch(h + '/api/v3/klines?symbol=' + pair + '&interval=' + interval + '&limit=1000' + (end ? '&endTime=' + end : ''));
-          if (!res.ok) throw new Error('Binance a répondu ' + res.status);
-          rows = await res.json();
-          break;
-        } catch (e) { lastErr = e; }
-      }
-      if (!rows) throw lastErr;
+      const rows = await page(symbol, interval, 1000, end);
       if (!rows.length) break;
-      out = rows.map(r => scale(symbol, { time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] })).concat(out);
+      out = rows.map(r => scale(symbol, toBar(r))).concat(out);
       end = rows[0][0] - 1;
       if (rows.length < 1000) break;
     }
@@ -111,6 +138,6 @@
   const TV_TF = { '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
   const tvUrl = (sym, tf) => 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(TV[sym] || sym) + '&interval=' + (TV_TF[tf] || '60');
 
-  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, fetchHistory, parseCsv, factor, isAuto, setFactor, scale };
+  const api = { LIVE, UNIVERSE, TV, tvUrl, fetchLive, fetchHistory, parseCsv, factor, isAuto, setFactor, scale, source, sourceName, wsInfo };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Prices = api;
 })(typeof self !== 'undefined' ? self : this);

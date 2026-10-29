@@ -3,7 +3,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const K2K_VERSION = 42;
+  const K2K_VERSION = 43;
   const css = getComputedStyle(document.documentElement);
   const C = name => css.getPropertyValue(name).trim();
   const COL = { bull: C('--bull'), bear: C('--bear'), gold: C('--gold'), warn: C('--warn'), muted: C('--muted'), line: C('--line'), fg: C('--fg'), surface: C('--surface') };
@@ -605,7 +605,7 @@
     state.frames = frames;
     if (!silent) connectLive();
     const rf = Prices.factor(sym);
-    $('chart-source').textContent = 'Binance ' + Prices.LIVE[sym] + (sym === 'XAUUSD' ? ' (jeton adossé à l\'or)' : '') + (rf !== 1 ? (Prices.isAuto(sym) ? ' · recalé automatiquement sur OANDA, estimation (' : ' · recalé sur ton courtier (') + (rf > 1 ? '+' : '−') + Math.abs((rf - 1) * 100).toFixed(2).replace('.', ',') + ' %)' : '') + ' · version ' + K2K_VERSION + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    $('chart-source').textContent = Prices.sourceName(sym) + (rf !== 1 ? (Prices.isAuto(sym) ? ' · recalé automatiquement sur OANDA, estimation (' : ' · recalé sur ton courtier (') + (rf > 1 ? '+' : '−') + Math.abs((rf - 1) * 100).toFixed(2).replace('.', ',') + ' %)' : '') + ' · version ' + K2K_VERSION + ' · mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     renderAll();
   }
 
@@ -655,12 +655,12 @@
   function connectLive() {
     const token = ++wsToken;
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
-    const pair = Prices.LIVE[state.sym];
+    const wi = Prices.LIVE[state.sym] ? Prices.wsInfo(state.sym) : null, pair = wi && wi.pair;
     setLive(false);
     if (!state.open || !pair || state.imported[state.sym] || !('WebSocket' in window)) return;
     const p = pair.toLowerCase();
     const streams = TFS.map(t => p + '@kline_' + t.tf).join('/');
-    const hosts = ['wss://stream.binance.com:9443', 'wss://data-stream.binance.vision'];
+    const hosts = wi.hosts;
     let hi = 0;
     const open = () => {
       if (token !== wsToken) return;

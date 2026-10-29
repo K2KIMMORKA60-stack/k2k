@@ -230,22 +230,29 @@
 
   // ---------- Bougies en direct pour toutes les cartes (un seul flux Binance) ----------
   let ws = null, wsToken = 0;
-  function disconnect() { wsToken++; if (ws) { ws.onclose = null; ws.close(); ws = null; } }
+  let socks = [];
+  function disconnect() { wsToken++; for (const s of socks) { s.onclose = null; s.close(); } socks = []; ws = null; }
   function connect() {
     disconnect();
     if (!('WebSocket' in window) || !$('home').offsetParent && $('home').hidden) return;
     const token = wsToken;
     const pairs = Object.keys(results).filter(s => results[s].f && Prices.LIVE[s]);
     if (!pairs.length) return;
+    // Un flux par serveur : Binance au comptant pour les cryptos, Binance Futures pour l'or (XAUUSDT).
+    const groups = {};
+    for (const s of pairs) { const wi = Prices.wsInfo(s), g = groups[wi.hosts[0]] || (groups[wi.hosts[0]] = { hosts: wi.hosts, list: [] }); g.list.push([s, wi.pair]); }
+    for (const g of Object.values(groups)) openGroup(token, g);
+  }
+  function openGroup(token, g) {
     const bySym = {};
-    for (const s of pairs) bySym[Prices.LIVE[s]] = s;
-    const streams = pairs.map(s => Prices.LIVE[s].toLowerCase() + '@kline_' + scannedUnit).join('/');
-    const hosts = ['wss://stream.binance.com:9443', 'wss://data-stream.binance.vision'];
+    for (const [s, pair] of g.list) bySym[pair] = s;
+    const streams = g.list.map(([, pair]) => pair.toLowerCase() + '@kline_' + scannedUnit).join('/');
+    const hosts = g.hosts;
     let hi = 0;
     const open = () => {
       if (token !== wsToken) return;
       const sock = new WebSocket(hosts[hi] + '/stream?streams=' + streams);
-      ws = sock;
+      socks.push(sock); ws = sock;
       sock.onmessage = e => {
         if (token !== wsToken) return;
         const k = JSON.parse(e.data).data;
